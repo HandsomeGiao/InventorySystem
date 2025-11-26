@@ -1,0 +1,87 @@
+﻿#pragma once
+
+#include "CoreMinimal.h"
+
+#include "Inv_VirtualItemFragment.generated.h"
+
+USTRUCT(BlueprintType)
+struct FInv_VirtualItemFragment
+{
+    GENERATED_BODY()
+
+    //只要基类析构函数为virtual，则派生类析构函数自动变为virtual
+    virtual ~FInv_VirtualItemFragment() = default;
+};
+
+USTRUCT(BlueprintType)
+struct FInv_GridFragment : public FInv_VirtualItemFragment
+{
+    GENERATED_BODY()
+
+    FIntPoint GetGridSize() const { return GridSize; }
+    void SetGridSize(const FIntPoint &Size) { GridSize = Size; }
+    float GetGridPadding() const { return GridPadding; }
+    void SetGridPadding(float Padding) { GridPadding = Padding; }
+
+private:
+    UPROPERTY(EditDefaultsOnly, Category = "InventorySystem")
+    FIntPoint GridSize{1, 1};
+
+    UPROPERTY(EditDefaultsOnly, Category = "InventorySystem", meta = (ClampMin = "0.0"))
+    float GridPadding{0.f};
+
+};
+
+USTRUCT(BlueprintType)
+struct FInv_ImageFragment : public FInv_VirtualItemFragment
+{
+    GENERATED_BODY()
+
+    UTexture2D *GetIcon() const { return Icon; }
+
+private:
+    UPROPERTY(EditDefaultsOnly, Category = "InventorySystem")
+    TObjectPtr<UTexture2D> Icon{nullptr};
+
+    UPROPERTY(EditDefaultsOnly, Category = "InventorySystem")
+    FVector2D IconDimensions{44.f, 44.f};
+};
+
+USTRUCT(BlueprintType)
+struct FInv_StackFragment : public FInv_VirtualItemFragment
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditDefaultsOnly, Category="InventorySystem", meta = (ClampMin = "1"))
+    int32 MaxStackCount{1};
+};
+
+USTRUCT()
+struct FInv_ActorFragment : public FInv_VirtualItemFragment
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditDefaultsOnly, Category = "InventorySystem")
+    TSoftClassPtr<AActor> ActorClass;
+};
+
+USTRUCT()
+struct FInv_WeightFragment : public FInv_VirtualItemFragment
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditDefaultsOnly, Category = "InventorySystem", meta = (ClampMin = "0.0"))
+    float UnitWeight{0.0f};
+};
+
+USTRUCT()
+struct FInv_DisplayFragment : public FInv_VirtualItemFragment
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditDefaultsOnly, Category = "InventorySystem")
+    FText DisplayName;
+
+    UPROPERTY(EditDefaultsOnly, Category = "InventorySystem")
+    FText Description;
+};
