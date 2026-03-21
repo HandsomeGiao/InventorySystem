@@ -99,7 +99,7 @@ int32 FInv_ItemList::TryStackItem(const FInv_RealItemData &NewRealItem)
     if (!IsServer())
     {
         UE_LOG(LogInventorySystem, Warning, TEXT("FInv_ItemList::TryStackItem: Only server can stack items!"));
-        return false;
+        return 0;
     }
 
     // 检查是否已存在相同 ID 的物品
@@ -107,14 +107,14 @@ int32 FInv_ItemList::TryStackItem(const FInv_RealItemData &NewRealItem)
     {
         UE_LOG(LogInventorySystem, Warning, TEXT("FInv_ItemList::AddItem: Item with ID '%s' already exists!"),
             *NewRealItem.RealItemId.ToString());
-        return false;
+        return 0;
     }
 
     int32 NeedToFill = NewRealItem.StackCount;
     const FInv_StackFragment *StackFragment = NewRealItem.GetVirtualItemData()->GetFragmentOfType<FInv_StackFragment>();
     // 无法堆叠
     if (!StackFragment)
-        return false;
+        return 0;
     const int32 MaxStack = StackFragment->MaxStackCount;
 
     for (FInv_ItemFastArrayItem &ItemEntry : Items)

@@ -26,44 +26,21 @@ public:
 
     // ========== 物品数据访问 ==========
 
-    /**
-     * 获取物品数据（只读）
-     * @return 物品实例数据的引用
-     */
     const FInv_RealItemData &GetItemData() const { return RealItemData; }
-
     FInv_RealItemData &GetItemDataMutable() { return RealItemData; }
-
-    /**
-     * 设置物品数据（仅服务端）
-     * @param NewItemData 新的物品数据
-     */
-    UFUNCTION(BlueprintCallable, Category = "Inventory System|Item", meta = (BlueprintProtected))
+    
     void SetItemData(const FInv_RealItemData &NewItemData);
-
-    /**
-     * 获取物品的虚拟数据（共享定义）
-     */
+    
     const FInv_VirtualItemData *GetVirtualItemData() const;
 
-    /**
-     * 获取物品显示名称（便捷方法）
-     */
     UFUNCTION(BlueprintPure, Category = "Inventory System|Item")
     FText GetItemDisplayName() const;
 
-    /**
-     * 获取物品图标（便捷方法）
-     */
     UFUNCTION(BlueprintPure, Category = "Inventory System|Item")
     UTexture2D *GetItemIcon() const;
 
     // ========== 拾取逻辑 ==========
 
-    /**
-     * 检查物品是否可以被拾取
-     * 子类可重写此方法添加自定义条件
-     */
     UFUNCTION(BlueprintNativeEvent, Category = "Inventory System|Item")
     bool CanBePickedUp() const;
 
