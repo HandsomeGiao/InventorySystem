@@ -8,6 +8,7 @@
 
 // Forward declaration
 struct FInv_RealItemFragment;
+struct FInv_VirtualItemFragment;
 
 /**
  * 代表游戏世界内的某一种物品（虚拟/抽象的物品定义）
@@ -20,16 +21,15 @@ struct INVENTORYSYSTEM_API FInv_VirtualItemData : public FTableRowBase
 	GENERATED_BODY()
 
 	// 物品的 GameplayTag 标识（用于快速查找和分类）
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "InventorySystem | Item Definition")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Item Definition")
 	FGameplayTag ItemTag;
 
 	// 静态、共享的物品数据（图标、网格大小、最大堆叠数等）
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "InventorySystem |Item Definition",
-		meta = (BaseStruct = "/Script/InventorySystem.Inv_VirtualItemFragment", ExcludeBaseStruct, ShowTreeView))
-	TArray<FInstancedStruct> VirtualItemFragments;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Item Definition")
+	TArray<TInstancedStruct<FInv_VirtualItemFragment>> VirtualItemFragments;
 
 	// 实例Fragment模板：定义每个实例需要哪些动态属性及其默认值
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "InventorySystem |Instance Templates")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Item Definition")
 	TArray<TInstancedStruct<FInv_RealItemFragment>> InstanceRealItemFragmentsTemplate;
 
 	// find fragment
@@ -44,7 +44,7 @@ struct INVENTORYSYSTEM_API FInv_VirtualItemData : public FTableRowBase
 template <typename T> requires std::derived_from<T, FInv_VirtualItemFragment>
 const T* FInv_VirtualItemData::GetFragmentOfType() const
 {
-	for (const FInstancedStruct& Fragment : VirtualItemFragments)
+	for (const TInstancedStruct<FInv_VirtualItemFragment>& Fragment : VirtualItemFragments)
 	{
 		if (const T* FragmentPtr = Fragment.GetPtr<T>()) { return FragmentPtr; }
 	}
@@ -54,7 +54,7 @@ const T* FInv_VirtualItemData::GetFragmentOfType() const
 template <typename T> requires std::derived_from<T, FInv_VirtualItemFragment>
 T* FInv_VirtualItemData::GetFragmentOfTypeMutable()
 {
-	for (FInstancedStruct& Fragment : VirtualItemFragments)
+	for (const TInstancedStruct<FInv_VirtualItemFragment>& Fragment : VirtualItemFragments)
 	{
 		if (T* FragmentPtr = Fragment.GetMutablePtr<T>()) { return FragmentPtr; }
 	}
