@@ -20,7 +20,7 @@ class INVENTORYSYSTEM_API UInv_BpFuncLib : public UBlueprintFunctionLibrary
 
 public:
     UFUNCTION(BlueprintCallable, Category="Inventory System|Utils")
-    static int32 GetRealItemFragmentByClass(const TArray<TInstancedStruct<FInv_BaseRealItemFragment>> &Fragments,
+    static int32 GetRealItemFragmentByClass(const TArray<TInstancedStruct<FInv_RealItemFragment>> &Fragments,
         const UScriptStruct *FragmentClass);
 
     UFUNCTION(BlueprintCallable, Category="Inventory System|Utils")

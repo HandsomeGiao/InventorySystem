@@ -1,7 +1,6 @@
 ﻿#pragma once
 
 #include "CoreMinimal.h"
-
 #include "Inv_VirtualItemFragment.generated.h"
 
 USTRUCT(BlueprintType)
@@ -48,7 +47,7 @@ private:
 };
 
 USTRUCT(BlueprintType)
-struct FInv_StackFragment : public FInv_VirtualItemFragment
+struct FInv_MaxStackFragment : public FInv_VirtualItemFragment
 {
     GENERATED_BODY()
 

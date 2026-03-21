@@ -165,7 +165,7 @@ void UInv_InventoryEntry::UpdateCount()
         return;
     }
     const FInv_VirtualItemData *VirtualData = CurrentItemData.GetVirtualItemData();
-    if (VirtualData && VirtualData->GetFragmentOfType<FInv_StackFragment>())
+    if (VirtualData && VirtualData->GetFragmentOfType<FInv_MaxStackFragment>())
     {
         // 显示数量
         ItemCount->SetText(FText::AsNumber(CurrentItemData.StackCount));

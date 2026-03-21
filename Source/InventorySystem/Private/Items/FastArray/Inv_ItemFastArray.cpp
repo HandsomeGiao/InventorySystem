@@ -111,7 +111,7 @@ int32 FInv_ItemList::TryStackItem(const FInv_RealItemData &NewRealItem)
     }
 
     int32 NeedToFill = NewRealItem.StackCount;
-    const FInv_StackFragment *StackFragment = NewRealItem.GetVirtualItemData()->GetFragmentOfType<FInv_StackFragment>();
+    const FInv_MaxStackFragment *StackFragment = NewRealItem.GetVirtualItemData()->GetFragmentOfType<FInv_MaxStackFragment>();
     // 无法堆叠
     if (!StackFragment)
         return 0;
@@ -188,8 +188,8 @@ void FInv_ItemList::TryDropItem(FGuid SourceItemId, FGuid TargetItemId)
 
     // 相同的物品种类,检测能否堆叠
     const FInv_VirtualItemData *VirtualItemData = Items[SourceIndex].RealItemData.GetVirtualItemData();
-    const FInv_StackFragment *StackFragment = VirtualItemData
-                                                  ? VirtualItemData->GetFragmentOfType<FInv_StackFragment>()
+    const FInv_MaxStackFragment *StackFragment = VirtualItemData
+                                                  ? VirtualItemData->GetFragmentOfType<FInv_MaxStackFragment>()
                                                   : nullptr;
     const int32 MaxStack = StackFragment ? StackFragment->MaxStackCount : 1;
     const int32 CanStackCount = FMath::Min(SourceItemData.StackCount, MaxStack - TargetItemData.StackCount);

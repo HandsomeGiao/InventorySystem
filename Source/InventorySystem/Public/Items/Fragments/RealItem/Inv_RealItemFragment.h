@@ -6,7 +6,16 @@
 // TODO:添加RealItemFragment
 
 USTRUCT(BlueprintType)
-struct INVENTORYSYSTEM_API FInv_BaseRealItemFragment
+struct INVENTORYSYSTEM_API FInv_RealItemFragment
 {
-    GENERATED_BODY()
+	GENERATED_BODY()
+};
+
+USTRUCT(BlueprintType)
+struct INVENTORYSYSTEM_API FInv_TestValueFragment : public FInv_RealItemFragment
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	float TestValue{10.f};
 };

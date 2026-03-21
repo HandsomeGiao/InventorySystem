@@ -6,13 +6,13 @@
 #include "Items/Fragments/VirtualItem/Inv_VirtualItemFragment.h"
 
 int32 UInv_BpFuncLib::GetRealItemFragmentByClass(
-    const TArray<TInstancedStruct<FInv_BaseRealItemFragment>> &Fragments,
+    const TArray<TInstancedStruct<FInv_RealItemFragment>> &Fragments,
     const UScriptStruct *FragmentClass)
 {
     if (!FragmentClass)
         return INDEX_NONE;
 
-    if (!FragmentClass->IsChildOf(FInv_BaseRealItemFragment::StaticStruct()))
+    if (!FragmentClass->IsChildOf(FInv_RealItemFragment::StaticStruct()))
     {
         UE_LOG(LogTemp, Warning,
             TEXT(
