@@ -3,8 +3,8 @@
 #include "CoreMinimal.h"
 #include "Inv_VirtualItemFragment.generated.h"
 
-USTRUCT(BlueprintType)
-struct FInv_VirtualItemFragment
+USTRUCT(meta = (Hidden))
+struct INVENTORYSYSTEM_API FInv_VirtualItemFragment
 {
     GENERATED_BODY()
 
@@ -13,7 +13,7 @@ struct FInv_VirtualItemFragment
 };
 
 USTRUCT(BlueprintType)
-struct FInv_GridFragment : public FInv_VirtualItemFragment
+struct INVENTORYSYSTEM_API FInv_GridFragment : public FInv_VirtualItemFragment
 {
     GENERATED_BODY()
 
@@ -32,11 +32,13 @@ private:
 };
 
 USTRUCT(BlueprintType)
-struct FInv_ImageFragment : public FInv_VirtualItemFragment
+struct INVENTORYSYSTEM_API FInv_ImageFragment : public FInv_VirtualItemFragment
 {
     GENERATED_BODY()
 
     UTexture2D *GetIcon() const { return Icon; }
+    bool HasIcon() const { return Icon != nullptr; }
+    FVector2D GetIconDimensions() const { return IconDimensions; }
 
 private:
     UPROPERTY(EditDefaultsOnly, Category = "InventorySystem")
@@ -47,7 +49,7 @@ private:
 };
 
 USTRUCT(BlueprintType)
-struct FInv_MaxStackFragment : public FInv_VirtualItemFragment
+struct INVENTORYSYSTEM_API FInv_MaxStackFragment : public FInv_VirtualItemFragment
 {
     GENERATED_BODY()
 
@@ -56,7 +58,7 @@ struct FInv_MaxStackFragment : public FInv_VirtualItemFragment
 };
 
 USTRUCT()
-struct FInv_ActorFragment : public FInv_VirtualItemFragment
+struct INVENTORYSYSTEM_API FInv_ActorFragment : public FInv_VirtualItemFragment
 {
     GENERATED_BODY()
 
@@ -65,7 +67,7 @@ struct FInv_ActorFragment : public FInv_VirtualItemFragment
 };
 
 USTRUCT()
-struct FInv_WeightFragment : public FInv_VirtualItemFragment
+struct INVENTORYSYSTEM_API FInv_WeightFragment : public FInv_VirtualItemFragment
 {
     GENERATED_BODY()
 
@@ -74,7 +76,7 @@ struct FInv_WeightFragment : public FInv_VirtualItemFragment
 };
 
 USTRUCT()
-struct FInv_DisplayFragment : public FInv_VirtualItemFragment
+struct INVENTORYSYSTEM_API FInv_DisplayFragment : public FInv_VirtualItemFragment
 {
     GENERATED_BODY()
 

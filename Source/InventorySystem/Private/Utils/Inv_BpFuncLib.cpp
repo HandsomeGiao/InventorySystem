@@ -30,7 +30,7 @@ int32 UInv_BpFuncLib::GetRealItemFragmentByClass(
     return INDEX_NONE; // 循环结束，未找到 
 }
 
-int32 UInv_BpFuncLib::GetVirtualFragmentByClass(const TArray<TInstancedStruct<FInv_VirtualItemFragment>> &Fragments,
+int32 UInv_BpFuncLib::GetVirtualFragmentByClass(const TArray<FInstancedStruct> &Fragments,
     const UScriptStruct *FragmentClass)
 {
     if (!FragmentClass)

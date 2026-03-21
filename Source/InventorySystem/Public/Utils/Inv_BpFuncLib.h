@@ -24,6 +24,6 @@ public:
         const UScriptStruct *FragmentClass);
 
     UFUNCTION(BlueprintCallable, Category="Inventory System|Utils")
-    static int32 GetVirtualFragmentByClass(const TArray<TInstancedStruct<FInv_VirtualItemFragment>> &Fragments,
+    static int32 GetVirtualFragmentByClass(const TArray<FInstancedStruct> &Fragments,
         const UScriptStruct *FragmentClass);
 };

@@ -24,8 +24,9 @@ struct INVENTORYSYSTEM_API FInv_VirtualItemData : public FTableRowBase
 	FGameplayTag ItemTag;
 
 	// 静态、共享的物品数据（图标、网格大小、最大堆叠数等）
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "InventorySystem |Item Definition")
-	TArray<TInstancedStruct<FInv_VirtualItemFragment>> ItemFragments;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "InventorySystem |Item Definition",
+		meta = (BaseStruct = "/Script/InventorySystem.Inv_VirtualItemFragment", ExcludeBaseStruct, ShowTreeView))
+	TArray<FInstancedStruct> VirtualItemFragments;
 
 	// 实例Fragment模板：定义每个实例需要哪些动态属性及其默认值
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "InventorySystem |Instance Templates")
@@ -43,7 +44,7 @@ struct INVENTORYSYSTEM_API FInv_VirtualItemData : public FTableRowBase
 template <typename T> requires std::derived_from<T, FInv_VirtualItemFragment>
 const T* FInv_VirtualItemData::GetFragmentOfType() const
 {
-	for (const TInstancedStruct<FInv_VirtualItemFragment>& Fragment : ItemFragments)
+	for (const FInstancedStruct& Fragment : VirtualItemFragments)
 	{
 		if (const T* FragmentPtr = Fragment.GetPtr<T>()) { return FragmentPtr; }
 	}
@@ -53,7 +54,7 @@ const T* FInv_VirtualItemData::GetFragmentOfType() const
 template <typename T> requires std::derived_from<T, FInv_VirtualItemFragment>
 T* FInv_VirtualItemData::GetFragmentOfTypeMutable()
 {
-	for (TInstancedStruct<FInv_VirtualItemFragment>& Fragment : ItemFragments)
+	for (FInstancedStruct& Fragment : VirtualItemFragments)
 	{
 		if (T* FragmentPtr = Fragment.GetMutablePtr<T>()) { return FragmentPtr; }
 	}

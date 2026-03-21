@@ -22,12 +22,12 @@ struct INVENTORYSYSTEM_API FInv_RealItemData
 	UPROPERTY(BlueprintReadOnly, Category = "InventorySystem | Item Instance")
 	FGuid RealItemId;
 
-	// 堆叠数量
+	// 堆叠数量,按理来说这应该抽象为一个Fragment,但是一开始我并没有这样去做,导致积重难返.
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "InventorySystem | Item Instance", meta = (ClampMin = "1"))
 	int32 StackCount{1};
 
 	// 实例特定的动态数据（耐久度、新鲜度、附魔等）
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "InventorySystem | Instance Data")
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "InventorySystem | Instance Data")
 	TArray<TInstancedStruct<FInv_RealItemFragment>> InstanceFragments;
 
 	// ========== 便捷访问方法 ==========

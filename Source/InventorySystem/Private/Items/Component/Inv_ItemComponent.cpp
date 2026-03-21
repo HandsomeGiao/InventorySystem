@@ -47,6 +47,11 @@ void UInv_ItemComponent::BeginPlay()
 	if (GetOwner()->HasAuthority())
 	{
 		RealItemData.RealItemId = FGuid::NewGuid();
+		if (auto VData = RealItemData.VirtualItemDataHandle.GetRow<FInv_VirtualItemData>("GetVirtualData"))
+		{
+			RealItemData.InstanceFragments = VData->InstanceRealItemFragmentsTemplate;
+		}
+
 		UE_LOG(LogInventorySystem, Verbose,
 		       TEXT("UInv_ItemComponent::BeginPlay: Generated new RealItemId: %s for actor '%s'"),
 		       *RealItemData.RealItemId.ToString(), *GetOwner()->GetName());

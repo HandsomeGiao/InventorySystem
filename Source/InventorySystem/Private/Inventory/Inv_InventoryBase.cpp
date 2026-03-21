@@ -309,7 +309,7 @@ bool UInv_InventoryBase::TryPickupItem(AActor* ItemActor)
 		       *ItemActor->GetName(), ItemData.StackCount);
 	}
 
-	// 尝试不适用堆叠添加物品
+	// 尝试不使用堆叠添加物品
 	if (ItemData.StackCount > 0)
 	{
 		if (TryAddItemInstanceIndividually(ItemData))
@@ -330,6 +330,7 @@ bool UInv_InventoryBase::TryPickupItem(AActor* ItemActor)
 		}
 	}
 
+	//只要捡起了一部分的物品,就会调用这个函数
 	if (bSuccess)
 		ItemComp->OnPickedUp(GetOwner());
 
