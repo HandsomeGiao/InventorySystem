@@ -16,6 +16,6 @@ struct INVENTORYSYSTEM_API FInv_TestValueFragment : public FInv_RealItemFragment
 {
 	GENERATED_BODY()
 
-	UPROPERTY()
+	UPROPERTY(EditAnywhere)
 	float TestValue{10.f};
 };

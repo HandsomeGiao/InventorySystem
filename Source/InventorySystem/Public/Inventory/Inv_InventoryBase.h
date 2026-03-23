@@ -66,7 +66,6 @@ protected:
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
-
 	// ========== 配置属性 ==========
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory System",
@@ -75,10 +74,6 @@ protected:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory System")
 	int32 PerRowCount{5};
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory System|UI",
-		meta = (ClampMin = "0.0", UIMin = "0.0", UIMax = "1000.0"))
-	float PickupRange{300.0f};
 
 	/**
 	 * 允许存放的物品类型标签（空表示允许所有类型）

@@ -6,102 +6,57 @@
 #include "Inv_InventoryEntry.generated.h"
 
 class UInv_ItemOptionsWidget;
-// 前向声明
 class UImage;
 class UTextBlock;
 
-/**
- * 库存物品格子 Widget
- */
 UCLASS(Blueprintable, BlueprintType)
 class INVENTORYSYSTEM_API UInv_InventoryEntry : public UUserWidget
 {
-    GENERATED_BODY()
+	GENERATED_BODY()
 
 public:
-    // ========== 公共接口 ==========
+	// ========== 外部查询接口 ==========
 
-    /**
-     * 设置物品信息并更新 UI
-     * @param RealItemData 物品数据
-     */
-    UFUNCTION(BlueprintCallable, Category = "Inventory System|UI")
-    void SetInfo(const FInv_RealItemData &RealItemData);
+	const FInv_RealItemData& GetCurrentItemData() const { return CurrentItemData; }
+	FGuid GetCurrentItemId() const { return CurrentItemData.RealItemId; }
+	bool IsEmpty() const { return !CurrentItemData.RealItemId.IsValid(); }
 
-    const FInv_RealItemData& GetCurrentItemData() const { return  CurrentItemData; }
+	// ========== 外部修改接口 ==========
+	void SetInfo(const FInv_RealItemData& RealItemData);
+	void ClearEntry();
+	void SetWidgetIndex(int32 InIndex) { WidgetIndex = InIndex; }
 
-    /**
-     * 清空格子（不显示任何物品）
-     */
-    UFUNCTION(BlueprintCallable, Category = "Inventory System|UI")
-    void ClearEntry();
+	// ========== 多播 ============
+	DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnItemDrop, FGuid, SourceItemId, FGuid, TargetItemId);
 
-    /**
-     * 获取当前显示的物品 ID（如果有）
-     */
-    UFUNCTION(BlueprintPure, Category = "Inventory System|UI")
-    FGuid GetCurrentItemId() const { return CurrentItemData.RealItemId; }
+	DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnItemOptions, int32, WidgetIndex);
 
-    /**
-     * 检查格子是否为空
-     */
-    UFUNCTION(BlueprintPure, Category = "Inventory System|UI")
-    bool IsEmpty() const { return !CurrentItemData.RealItemId.IsValid(); }
+	FOnItemDrop OnItemDrop;
+	FOnItemOptions OnItemOptions;
 
-    // ========== 拖拽功能 ==========
-    virtual FReply NativeOnMouseButtonDown(const FGeometry &InGeometry, const FPointerEvent &InMouseEvent) override;
-    virtual void NativeOnDragDetected(const FGeometry &InGeometry, const FPointerEvent &InMouseEvent,
-        UDragDropOperation *&OutOperation) override;
-    virtual bool NativeOnDrop(const FGeometry &InGeometry, const FDragDropEvent &InDragDropEvent,
-        UDragDropOperation *InOperation) override;
-
-    // 声明拖拽时的多播事件
-    DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnItemDrop, FGuid, SourceItemId,FGuid, TargetItemId);
-    FOnItemDrop OnItemDrop;
-
-    // ========= 物品选项事件 ==========
-    DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnItemOptions, int32, WidgetIndex);
-    FOnItemOptions OnItemOptions;
-
-    void SetWidgetIndex(int32 InIndex) { WidgetIndex = InIndex; }
 protected:
-    // ========== UI 组件（蓝图绑定）==========
+	// ========== override func =============
 
-    /**
-     * 物品图标
-     * 在蓝图中添加名为 "ItemIcon" 的 Image 组件
-     */
-    UPROPERTY(BlueprintReadOnly, meta = (BindWidget))
-    UImage *ItemIcon;
+	virtual FReply NativeOnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent) override;
+	virtual void NativeOnDragDetected(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent,
+	                                  UDragDropOperation*& OutOperation) override;
+	virtual bool NativeOnDrop(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent,
+	                          UDragDropOperation* InOperation) override;
 
-    /**
-     * 物品数量文本
-     * 在蓝图中添加名为 "ItemCount" 的 TextBlock 组件
-     */
-    UPROPERTY(BlueprintReadOnly, meta = (BindWidget))
-    UTextBlock *ItemCount;
+	// ========== UI 组件（蓝图绑定）==========
 
-    int32 WidgetIndex;
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidget))
+	UImage* ItemIcon;
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidget))
+	UTextBlock* ItemCount;
 
 private:
-    // ========== 内部数据 ==========
+	// ========== 内部数据 ==========
 
-    /**
-     * 当前显示的物品 
-     * 用于追踪当前显示的物品
-     */
-    FInv_RealItemData CurrentItemData;
+	int32 WidgetIndex;
+	FInv_RealItemData CurrentItemData;
 
-    // ========== 内部辅助方法 ==========
-
-    /**
-     * 更新图标显示
-     * @param Icon 要显示的图标纹理
-     */
-    void UpdateIcon(UTexture2D *Icon);
-
-    /**
-     * 更新数量文本
-     */
-    void UpdateCount();
+	// ========== 内部辅助方法 ==========
+	void UpdateIcon(UTexture2D* Icon);
+	void UpdateCount();
 };

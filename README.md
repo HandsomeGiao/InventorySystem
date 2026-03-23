@@ -12,7 +12,7 @@
 ## 如何使用此插件
 
 1. 创建UInv_ItemOptionsWidget，UInv_InventoryEntry的蓝图派生类。
-2. 创建UInv_InventoryWidgetBase的派生类，并且在其中配置步骤1中创建的类。
+2. 创建UInv_InventoryWidgetBase的派生类，并且在其中配置步骤1,2中创建的类。
 3. 创建UInv_InventoryBase的派生类，将其添加到PlayerCharacter的组件中，并在其中配置步骤2中创建的类。
 4. 在对应的物品Actor中添加UInv_ItemComponent组件，并在其中配置对应的物品属性。
 5. 在自定义检测逻辑，对检测到的物品Actor调用UInv_InventoryBase::ServerPickupItem函数
@@ -20,6 +20,6 @@
 ## 自定义物品与数据
 
 1. 创建FInv_VirtualItemData的DataTable
-2. 在C++中自定义FInv_VirtualItemFragment的派生类，可以包含任何类型的数据
-3. 在1中的DataTable中添加行，指定物品的GameplayTag，以及对应的FInv_VirtualItemFragment数组
+2. 在C++中自定义FInv_VirtualItemFragment和FInv_RealItemFragment的派生类，可以包含任何类型的数据
+3. 在1中的DataTable中添加行，指定物品的GameplayTag，以及对应的Fragments(Real or Virtual)数组
 4. 在UInv_ItemComponent中指定该行

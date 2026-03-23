@@ -3,7 +3,7 @@
 #include "CoreMinimal.h"
 #include "Inv_VirtualItemFragment.generated.h"
 
-USTRUCT()
+USTRUCT(NotBlueprintType)
 struct INVENTORYSYSTEM_API FInv_VirtualItemFragment
 {
 	GENERATED_BODY()

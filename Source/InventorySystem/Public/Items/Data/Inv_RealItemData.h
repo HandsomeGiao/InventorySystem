@@ -26,7 +26,9 @@ struct INVENTORYSYSTEM_API FInv_RealItemData
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "InventorySystem | Item Instance", meta = (ClampMin = "1"))
 	int32 StackCount{1};
 
-	// 实例特定的动态数据（耐久度、新鲜度、附魔等）
+	// 实例特定的动态数据（耐久度、新鲜度、附魔等）,
+	// TODO:这里我们设置为无法编辑,也就是说RealItemFragment只能由
+	// virtual item data决定.但是有时候会需要编辑特定的RealItemFragment,以后再完善.
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = "InventorySystem | Instance Data")
 	TArray<TInstancedStruct<FInv_RealItemFragment>> InstanceFragments;
 

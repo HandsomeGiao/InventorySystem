@@ -10,11 +10,6 @@ UInv_ItemComponent::UInv_ItemComponent()
 	// 启用网络复制
 	SetIsReplicatedByDefault(true);
 
-	// 默认配置
-	bDestroyOnPickup = true;
-	DestroyDelay = 0.1f;
-	bIsPickedUp = false;
-
 	// 默认不需要 Tick
 	PrimaryComponentTick.bCanEverTick = false;
 }

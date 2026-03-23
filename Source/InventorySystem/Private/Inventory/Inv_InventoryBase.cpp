@@ -38,7 +38,7 @@ void UInv_InventoryBase::CreateInvWidget()
 			InventoryWidgetInstance->OnItemSplit.AddDynamic(this, &ThisClass::ServerOnItemSplitFunc);
 		}
 	}
-	
+
 	if (!InventoryWidgetInstance.IsValid())
 	{
 		UE_LOG(LogInventorySystem, Error,
@@ -268,7 +268,7 @@ bool UInv_InventoryBase::TryPickupItem(AActor* ItemActor)
 	}
 
 	// 验证 Actor 有效性
-	if (IsValid(ItemActor))
+	if (!IsValid(ItemActor))
 	{
 		UE_LOG(LogInventorySystem, Warning, TEXT("UInv_InventoryBase::TryPickupItem: Invalid ItemActor"));
 		return false;

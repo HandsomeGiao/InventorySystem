@@ -132,7 +132,7 @@ void UInv_InventoryWidgetBase::UpdateInventory(const TArray<FInv_RealItemData> &
 
 void UInv_InventoryWidgetBase::UpdateSlot(const FInv_RealItemData &ItemData)
 {
-    const int32 SlotIndex = FindSlotByItemId(ItemData.RealItemId);
+    const int32 SlotIndex = FindSlotIdxByItemId(ItemData.RealItemId);
     if (SlotIndex == INDEX_NONE)
     {
         UE_LOG(LogInventorySystem, Warning,
@@ -174,7 +174,7 @@ void UInv_InventoryWidgetBase::ClearAllSlots()
     UE_LOG(LogInventorySystem, Verbose, TEXT("UInv_PlayerInventoryWidget::ClearAllSlots: Cleared all slots"));
 }
 
-int32 UInv_InventoryWidgetBase::FindSlotByItemId(const FGuid &ItemId) const
+int32 UInv_InventoryWidgetBase::FindSlotIdxByItemId(const FGuid &ItemId) const
 {
     if (!ItemId.IsValid())
     {
