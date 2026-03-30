@@ -27,6 +27,15 @@
 - FInv_RealItemData 现在会同步 SlotIndex，表示该物品当前所在的库存槽位。
 - UI在创建后会先读取当前库存快照，再依据SlotIndex将物品放入正确的格子中，因此不再依赖“Widget必须在一开始就存在”。
 
+## 拖拽
+
+- UInv_InventoryEntry 现在重新支持左键拖拽。
+- 拖拽既可以发生在同一个Inventory内部，也可以发生在不同Inventory之间。
+- 拖拽到空槽位时会移动物品。
+- 拖拽到同类且可堆叠的物品上时会优先进行堆叠。
+- 拖拽到其它物品上时会尝试交换两个槽位中的物品；跨Inventory交换时也会检查目标Inventory的类型过滤配置。
+- 跨Inventory拖拽时，UI会自动选择一个客户端可发送RPC的Inventory组件代发请求，因此常见的“玩家背包 <-> 箱子”场景可以直接工作。
+
 ## 自定义物品与数据
 
 1. 创建FInv_VirtualItemData的DataTable

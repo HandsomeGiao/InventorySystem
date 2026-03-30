@@ -185,6 +185,11 @@ struct INVENTORYSYSTEM_API FInv_ItemList : public FFastArraySerializer
     const FInv_RealItemData *FindItem(const FGuid &ItemId) const;
 
     /**
+     * 通过槽位索引查找物品
+     */
+    const FInv_RealItemData *FindItemBySlotIndex(int32 SlotIndex) const;
+
+    /**
      * 通过 ID 查找物品（可修改版本，仅服务端使用）
      * @param ItemId 物品的唯一 ID
      * @return 物品数据的指针，未找到返回 nullptr

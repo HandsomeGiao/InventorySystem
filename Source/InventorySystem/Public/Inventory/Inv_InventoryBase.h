@@ -50,6 +50,10 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Inventory System|UI")
 	UInv_InventoryWidgetBase* GetInventoryWidget() const { return InventoryWidgetInstance.Get(); }
 
+	void RequestMoveItem(UInv_InventoryBase* SourceInventory, const FGuid& SourceItemId,
+	                     UInv_InventoryBase* TargetInventory, int32 TargetSlotIndex);
+	bool CanSendServerCommand() const;
+
 	// ========== 修改接口（仅服务端）==========
 
 	virtual bool TryAddItemInstanceIndividually(const FInv_RealItemData& ItemData);
@@ -140,6 +144,19 @@ private:
 	// ========== 内部辅助方法 ==========
 
 	int32 FindFirstEmptySlotIndex() const;
+	bool IsValidInventorySlotIndex(int32 SlotIndex) const;
+	const FInv_RealItemData* FindItemBySlotIndex(int32 SlotIndex) const;
+	bool CanAcceptItemAtSlot(const FInv_RealItemData& ItemData, int32 SlotIndex,
+	                         const FGuid& IgnoredItemId = FGuid()) const;
+	int32 GetStackTransferCount(const FInv_RealItemData& SourceItemData, const FInv_RealItemData& TargetItemData) const;
+	bool TryMoveItemBetweenInventories(UInv_InventoryBase* SourceInventory, const FGuid& SourceItemId,
+	                                   UInv_InventoryBase* TargetInventory, int32 TargetSlotIndex);
+	bool TryTransferItemToEmptySlot(UInv_InventoryBase* SourceInventory, const FGuid& SourceItemId,
+	                                UInv_InventoryBase* TargetInventory, int32 TargetSlotIndex);
+	bool TryStackItems(UInv_InventoryBase* SourceInventory, const FGuid& SourceItemId,
+	                   UInv_InventoryBase* TargetInventory, const FGuid& TargetItemId);
+	bool TrySwapItems(UInv_InventoryBase* SourceInventory, const FGuid& SourceItemId,
+	                  UInv_InventoryBase* TargetInventory, const FGuid& TargetItemId);
 	bool IsItemTypeAllowed(const FInv_RealItemData& ItemData) const;
 
 	UFUNCTION()
@@ -149,6 +166,9 @@ private:
 	UFUNCTION()
 	void OnItemRemoved(FGuid ItemId);
 
+	UFUNCTION(Server, Reliable)
+	void ServerRequestMoveItem(AActor* SourceInventoryOwner, FGuid SourceItemId, AActor* TargetInventoryOwner,
+	                           int32 TargetSlotIndex);
 	UFUNCTION(Server, Reliable)
 	void ServerOnItemSplitFunc(FGuid ItemId, int32 SplitCount);
 };

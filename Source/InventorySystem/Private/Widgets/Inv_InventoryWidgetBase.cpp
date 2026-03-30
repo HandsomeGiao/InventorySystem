@@ -3,6 +3,7 @@
 #include "Components/UniformGridPanel.h"
 #include "Engine/Engine.h"
 #include "GameFramework/PlayerController.h"
+#include "Inventory/Inv_InventoryBase.h"
 #include "InventorySystem.h"
 #include "Widgets/Inv_ItemOptionsWidget.h"
 
@@ -80,6 +81,7 @@ void UInv_InventoryWidgetBase::InitializeInventory(int32 InTotalSlots, int32 InC
         }
 
         Entry->SetWidgetIndex(i);
+        Entry->SetInventoryWidget(this);
         InventoryEntries.Add(Entry);
         Entry->OnItemOptions.AddDynamic(this, &UInv_InventoryWidgetBase::OnItemOptionsFunc);
 
@@ -92,6 +94,42 @@ void UInv_InventoryWidgetBase::InitializeInventory(int32 InTotalSlots, int32 InC
     UE_LOG(LogInventorySystem, Log,
         TEXT("UInv_PlayerInventoryWidget::InitializeInventory: Created %d inventory slots (%d columns per row)"),
         TotalSlots, ColumnsPerRow);
+}
+
+void UInv_InventoryWidgetBase::SetInventory(UInv_InventoryBase* InInventory)
+{
+    BoundInventory = InInventory;
+}
+
+void UInv_InventoryWidgetBase::RequestItemDrop(UInv_InventoryBase* SourceInventory, const FGuid& SourceItemId,
+                                               int32 TargetSlotIndex)
+{
+    UInv_InventoryBase* TargetInventory = BoundInventory.Get();
+    if (!IsValid(SourceInventory) || !IsValid(TargetInventory))
+    {
+        UE_LOG(LogInventorySystem, Warning,
+            TEXT("UInv_InventoryWidgetBase::RequestItemDrop: SourceInventory or TargetInventory is invalid"));
+        return;
+    }
+
+    UInv_InventoryBase* RequestInventory = nullptr;
+    if (SourceInventory->CanSendServerCommand())
+    {
+        RequestInventory = SourceInventory;
+    }
+    else if (TargetInventory->CanSendServerCommand())
+    {
+        RequestInventory = TargetInventory;
+    }
+
+    if (!IsValid(RequestInventory))
+    {
+        UE_LOG(LogInventorySystem, Warning,
+            TEXT("UInv_InventoryWidgetBase::RequestItemDrop: Failed to find a valid inventory to send server RPC"));
+        return;
+    }
+
+    RequestInventory->RequestMoveItem(SourceInventory, SourceItemId, TargetInventory, TargetSlotIndex);
 }
 
 void UInv_InventoryWidgetBase::UpdateInventory(const TArray<FInv_RealItemData> &ItemDataArray)

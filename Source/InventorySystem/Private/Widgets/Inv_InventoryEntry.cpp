@@ -4,6 +4,8 @@
 #include "Items/Data/Inv_VirtualItemData.h"
 #include "Items/Fragments/VirtualItem/Inv_VirtualItemFragment.h"
 #include "InventorySystem.h"
+#include "Widgets/Inv_InventoryWidgetBase.h"
+#include "Widgets/Inv_InvDragDrop.h"
 
 void UInv_InventoryEntry::SetInfo(const FInv_RealItemData& RealItemData)
 {
@@ -56,6 +58,11 @@ void UInv_InventoryEntry::ClearEntry()
 
 FReply UInv_InventoryEntry::NativeOnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent)
 {
+	if (InMouseEvent.GetEffectingButton() == EKeys::LeftMouseButton && GetCurrentItemId().IsValid())
+	{
+		return FReply::Handled().DetectDrag(this->TakeWidget(), EKeys::LeftMouseButton);
+	}
+
 	if (InMouseEvent.GetEffectingButton() == EKeys::RightMouseButton && GetCurrentItemId().IsValid())
 	{
 		// 右键点击事件处理
@@ -65,6 +72,73 @@ FReply UInv_InventoryEntry::NativeOnMouseButtonDown(const FGeometry& InGeometry,
 		return FReply::Handled();
 	}
 	return Super::NativeOnMouseButtonDown(InGeometry, InMouseEvent);
+}
+
+void UInv_InventoryEntry::NativeOnDragDetected(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent,
+                                               UDragDropOperation*& OutOperation)
+{
+	Super::NativeOnDragDetected(InGeometry, InMouseEvent, OutOperation);
+
+	if (!InventoryWidget.IsValid() || !IsValid(InventoryWidget->GetInventory()))
+	{
+		UE_LOG(LogInventorySystem, Warning,
+		       TEXT("UInv_InventoryEntry::NativeOnDragDetected: InventoryWidget or BoundInventory is invalid"));
+		return;
+	}
+
+	if (UInv_InvDragDrop* DragDropOp = NewObject<UInv_InvDragDrop>())
+	{
+		DragDropOp->SourceInventory = InventoryWidget->GetInventory();
+		DragDropOp->SourceItemId = CurrentItemData.RealItemId;
+		DragDropOp->SourceSlotIndex = WidgetIndex;
+		DragDropOp->Payload = this;
+		DragDropOp->DefaultDragVisual = this;
+		DragDropOp->Pivot = EDragPivot::CenterCenter;
+		OutOperation = DragDropOp;
+		UE_LOG(LogInventorySystem, Display,
+		       TEXT("UInv_InventoryEntry::NativeOnDragDetected: Created drag operation, SlotIndex:%d, item '%s'"),
+		       WidgetIndex,
+		       *CurrentItemData.RealItemId.ToString());
+	}
+	else
+	{
+		UE_LOG(LogInventorySystem, Warning,
+		       TEXT("UInv_InventoryEntry::NativeOnDragDetected: Failed to create UInv_InvDragDrop operation"));
+	}
+}
+
+bool UInv_InventoryEntry::NativeOnDrop(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent,
+                                       UDragDropOperation* InOperation)
+{
+	if (UInv_InvDragDrop* InvDragOp = Cast<UInv_InvDragDrop>(InOperation))
+	{
+		if (!InventoryWidget.IsValid())
+		{
+			return false;
+		}
+
+		if (!IsValid(InvDragOp->SourceInventory))
+		{
+			UE_LOG(LogInventorySystem, Warning,
+			       TEXT("UInv_InventoryEntry::NativeOnDrop: SourceInventory is invalid"));
+			return false;
+		}
+
+		if (InvDragOp->SourceInventory == InventoryWidget->GetInventory() &&
+			InvDragOp->SourceSlotIndex == WidgetIndex)
+		{
+			return false;
+		}
+
+		InventoryWidget->RequestItemDrop(InvDragOp->SourceInventory, InvDragOp->SourceItemId, WidgetIndex);
+
+		UE_LOG(LogInventorySystem, Display,
+		       TEXT("UInv_InventoryEntry::NativeOnDrop: SourceItem '%s' dropped onto SlotIndex:%d"),
+		       *InvDragOp->SourceItemId.ToString(), WidgetIndex);
+
+		return true;
+	}
+	return Super::NativeOnDrop(InGeometry, InDragDropEvent, InOperation);
 }
 
 void UInv_InventoryEntry::UpdateIcon(UTexture2D* Icon)

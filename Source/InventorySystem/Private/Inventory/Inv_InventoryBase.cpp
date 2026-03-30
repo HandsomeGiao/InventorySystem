@@ -104,6 +104,7 @@ void UInv_InventoryBase::BindInventoryWidget(UInv_InventoryWidgetBase* InInvento
 	UnbindInventoryWidget();
 
 	InventoryWidgetInstance = InInventoryWidget;
+	InventoryWidgetInstance->SetInventory(this);
 	InventoryWidgetInstance->InitializeInventory(MaxSlots, PerRowCount);
 	InventoryWidgetInstance->OnItemSplit.AddDynamic(this, &ThisClass::ServerOnItemSplitFunc);
 
@@ -118,6 +119,7 @@ void UInv_InventoryBase::UnbindInventoryWidget()
 	}
 
 	InventoryWidgetInstance->OnItemSplit.RemoveDynamic(this, &ThisClass::ServerOnItemSplitFunc);
+	InventoryWidgetInstance->SetInventory(nullptr);
 	InventoryWidgetInstance.Reset();
 }
 
@@ -141,6 +143,40 @@ void UInv_InventoryBase::RefreshInventoryWidget()
 	}
 
 	InventoryWidgetInstance->UpdateInventory(GetAllItems());
+}
+
+void UInv_InventoryBase::RequestMoveItem(UInv_InventoryBase* SourceInventory, const FGuid& SourceItemId,
+                                         UInv_InventoryBase* TargetInventory, int32 TargetSlotIndex)
+{
+	if (!IsValid(SourceInventory) || !IsValid(TargetInventory))
+	{
+		UE_LOG(LogInventorySystem, Warning,
+		       TEXT("UInv_InventoryBase::RequestMoveItem: SourceInventory or TargetInventory is invalid"));
+		return;
+	}
+
+	if (GetOwner()->HasAuthority())
+	{
+		TryMoveItemBetweenInventories(SourceInventory, SourceItemId, TargetInventory, TargetSlotIndex);
+		return;
+	}
+
+	ServerRequestMoveItem(SourceInventory->GetOwner(), SourceItemId, TargetInventory->GetOwner(), TargetSlotIndex);
+}
+
+bool UInv_InventoryBase::CanSendServerCommand() const
+{
+	if (!GetOwner())
+	{
+		return false;
+	}
+
+	if (GetOwner()->HasAuthority() || GetNetMode() == NM_Standalone)
+	{
+		return true;
+	}
+
+	return GetOwner()->GetLocalRole() == ROLE_AutonomousProxy;
 }
 
 void UInv_InventoryBase::BeginPlay()
@@ -477,6 +513,19 @@ void UInv_InventoryBase::ServerPickupItem_Implementation(AActor* ItemActor)
 	TryPickupItem(ItemActor);
 }
 
+void UInv_InventoryBase::ServerRequestMoveItem_Implementation(AActor* SourceInventoryOwner, FGuid SourceItemId,
+                                                              AActor* TargetInventoryOwner, int32 TargetSlotIndex)
+{
+	UInv_InventoryBase* SourceInventory = SourceInventoryOwner
+		                                      ? SourceInventoryOwner->FindComponentByClass<UInv_InventoryBase>()
+		                                      : nullptr;
+	UInv_InventoryBase* TargetInventory = TargetInventoryOwner
+		                                      ? TargetInventoryOwner->FindComponentByClass<UInv_InventoryBase>()
+		                                      : nullptr;
+
+	TryMoveItemBetweenInventories(SourceInventory, SourceItemId, TargetInventory, TargetSlotIndex);
+}
+
 // ========== 事件响应默认实现 ==========
 
 void UInv_InventoryBase::OnItemAdded(const FInv_RealItemData& ItemData)
@@ -614,6 +663,244 @@ int32 UInv_InventoryBase::FindFirstEmptySlotIndex() const
 	}
 
 	return INDEX_NONE;
+}
+
+bool UInv_InventoryBase::IsValidInventorySlotIndex(int32 SlotIndex) const
+{
+	return SlotIndex >= 0 && SlotIndex < MaxSlots;
+}
+
+const FInv_RealItemData* UInv_InventoryBase::FindItemBySlotIndex(int32 SlotIndex) const
+{
+	return ItemList.FindItemBySlotIndex(SlotIndex);
+}
+
+bool UInv_InventoryBase::CanAcceptItemAtSlot(const FInv_RealItemData& ItemData, int32 SlotIndex,
+                                             const FGuid& IgnoredItemId) const
+{
+	if (!IsValidInventorySlotIndex(SlotIndex))
+	{
+		return false;
+	}
+
+	if (bUseItemTypeFilter && !IsItemTypeAllowed(ItemData))
+	{
+		return false;
+	}
+
+	const FInv_RealItemData* OccupiedItem = FindItemBySlotIndex(SlotIndex);
+	if (!OccupiedItem)
+	{
+		return true;
+	}
+
+	return IgnoredItemId.IsValid() && OccupiedItem->RealItemId == IgnoredItemId;
+}
+
+int32 UInv_InventoryBase::GetStackTransferCount(const FInv_RealItemData& SourceItemData,
+                                                const FInv_RealItemData& TargetItemData) const
+{
+	if (SourceItemData.VirtualItemDataHandle != TargetItemData.VirtualItemDataHandle)
+	{
+		return 0;
+	}
+
+	const FInv_VirtualItemData* VirtualItemData = SourceItemData.GetVirtualItemData();
+	const FInv_MaxStackFragment* StackFragment = VirtualItemData
+		                                             ? VirtualItemData->GetFragmentOfType<FInv_MaxStackFragment>()
+		                                             : nullptr;
+	if (!StackFragment)
+	{
+		return 0;
+	}
+
+	return FMath::Min(SourceItemData.StackCount, StackFragment->MaxStackCount - TargetItemData.StackCount);
+}
+
+bool UInv_InventoryBase::TryMoveItemBetweenInventories(UInv_InventoryBase* SourceInventory, const FGuid& SourceItemId,
+                                                       UInv_InventoryBase* TargetInventory, int32 TargetSlotIndex)
+{
+	if (!GetOwner()->HasAuthority())
+	{
+		UE_LOG(LogInventorySystem, Warning,
+		       TEXT("UInv_InventoryBase::TryMoveItemBetweenInventories: Can only execute on server"));
+		return false;
+	}
+
+	if (!IsValid(SourceInventory) || !IsValid(TargetInventory))
+	{
+		UE_LOG(LogInventorySystem, Warning,
+		       TEXT("UInv_InventoryBase::TryMoveItemBetweenInventories: SourceInventory or TargetInventory is invalid"));
+		return false;
+	}
+
+	if (!TargetInventory->IsValidInventorySlotIndex(TargetSlotIndex))
+	{
+		UE_LOG(LogInventorySystem, Warning,
+		       TEXT("UInv_InventoryBase::TryMoveItemBetweenInventories: Invalid TargetSlotIndex %d"),
+		       TargetSlotIndex);
+		return false;
+	}
+
+	const FInv_RealItemData* SourceItemData = SourceInventory->FindItemById(SourceItemId);
+	if (!SourceItemData)
+	{
+		UE_LOG(LogInventorySystem, Warning,
+		       TEXT("UInv_InventoryBase::TryMoveItemBetweenInventories: Failed to find source item '%s'"),
+		       *SourceItemId.ToString());
+		return false;
+	}
+
+	if (SourceInventory == TargetInventory && SourceItemData->SlotIndex == TargetSlotIndex)
+	{
+		return false;
+	}
+
+	const FInv_RealItemData* TargetItemData = TargetInventory->FindItemBySlotIndex(TargetSlotIndex);
+	if (!TargetItemData)
+	{
+		return TryTransferItemToEmptySlot(SourceInventory, SourceItemId, TargetInventory, TargetSlotIndex);
+	}
+
+	if (TargetItemData->RealItemId == SourceItemId)
+	{
+		return false;
+	}
+
+	if (GetStackTransferCount(*SourceItemData, *TargetItemData) > 0)
+	{
+		return TryStackItems(SourceInventory, SourceItemId, TargetInventory, TargetItemData->RealItemId);
+	}
+
+	return TrySwapItems(SourceInventory, SourceItemId, TargetInventory, TargetItemData->RealItemId);
+}
+
+bool UInv_InventoryBase::TryTransferItemToEmptySlot(UInv_InventoryBase* SourceInventory, const FGuid& SourceItemId,
+                                                    UInv_InventoryBase* TargetInventory, int32 TargetSlotIndex)
+{
+	const FInv_RealItemData* SourceItemData = SourceInventory->FindItemById(SourceItemId);
+	if (!SourceItemData)
+	{
+		return false;
+	}
+
+	if (!TargetInventory->CanAcceptItemAtSlot(*SourceItemData, TargetSlotIndex))
+	{
+		return false;
+	}
+
+	if (SourceInventory == TargetInventory)
+	{
+		FInv_RealItemData MovedItemData = *SourceItemData;
+		MovedItemData.SlotIndex = TargetSlotIndex;
+		return SourceInventory->UpdateItem(SourceItemId, MovedItemData);
+	}
+
+	FInv_RealItemData MovedItemData = *SourceItemData;
+	MovedItemData.SlotIndex = TargetSlotIndex;
+
+	if (!TargetInventory->ItemList.TryAddNewItem(MovedItemData))
+	{
+		return false;
+	}
+
+	if (!SourceInventory->TryRemoveItem(SourceItemId))
+	{
+		TargetInventory->ItemList.RemoveItem(SourceItemId);
+		return false;
+	}
+
+	return true;
+}
+
+bool UInv_InventoryBase::TryStackItems(UInv_InventoryBase* SourceInventory, const FGuid& SourceItemId,
+                                       UInv_InventoryBase* TargetInventory, const FGuid& TargetItemId)
+{
+	const FInv_RealItemData* SourceItemData = SourceInventory->FindItemById(SourceItemId);
+	const FInv_RealItemData* TargetItemData = TargetInventory->FindItemById(TargetItemId);
+	if (!SourceItemData || !TargetItemData)
+	{
+		return false;
+	}
+
+	const int32 StackTransferCount = GetStackTransferCount(*SourceItemData, *TargetItemData);
+	if (StackTransferCount <= 0)
+	{
+		return false;
+	}
+
+	const FInv_RealItemData OldTargetItemData = *TargetItemData;
+	FInv_RealItemData NewTargetItemData = *TargetItemData;
+	NewTargetItemData.StackCount += StackTransferCount;
+
+	if (!TargetInventory->UpdateItem(TargetItemId, NewTargetItemData))
+	{
+		return false;
+	}
+
+	FInv_RealItemData NewSourceItemData = *SourceItemData;
+	NewSourceItemData.StackCount -= StackTransferCount;
+
+	if (NewSourceItemData.StackCount <= 0)
+	{
+		if (!SourceInventory->TryRemoveItem(SourceItemId))
+		{
+			TargetInventory->UpdateItem(TargetItemId, OldTargetItemData);
+			return false;
+		}
+
+		return true;
+	}
+
+	if (!SourceInventory->UpdateItem(SourceItemId, NewSourceItemData))
+	{
+		TargetInventory->UpdateItem(TargetItemId, OldTargetItemData);
+		return false;
+	}
+
+	return true;
+}
+
+bool UInv_InventoryBase::TrySwapItems(UInv_InventoryBase* SourceInventory, const FGuid& SourceItemId,
+                                      UInv_InventoryBase* TargetInventory, const FGuid& TargetItemId)
+{
+	const FInv_RealItemData* SourceItemData = SourceInventory->FindItemById(SourceItemId);
+	const FInv_RealItemData* TargetItemData = TargetInventory->FindItemById(TargetItemId);
+	if (!SourceItemData || !TargetItemData)
+	{
+		return false;
+	}
+
+	if (!SourceInventory->CanAcceptItemAtSlot(*TargetItemData, SourceItemData->SlotIndex, SourceItemId))
+	{
+		return false;
+	}
+
+	if (!TargetInventory->CanAcceptItemAtSlot(*SourceItemData, TargetItemData->SlotIndex, TargetItemId))
+	{
+		return false;
+	}
+
+	const FInv_RealItemData OldSourceItemData = *SourceItemData;
+	const FInv_RealItemData OldTargetItemData = *TargetItemData;
+
+	FInv_RealItemData NewSourceItemData = *SourceItemData;
+	FInv_RealItemData NewTargetItemData = *TargetItemData;
+	NewSourceItemData.SlotIndex = OldTargetItemData.SlotIndex;
+	NewTargetItemData.SlotIndex = OldSourceItemData.SlotIndex;
+
+	if (!TargetInventory->UpdateItem(TargetItemId, NewTargetItemData))
+	{
+		return false;
+	}
+
+	if (!SourceInventory->UpdateItem(SourceItemId, NewSourceItemData))
+	{
+		TargetInventory->UpdateItem(TargetItemId, OldTargetItemData);
+		return false;
+	}
+
+	return true;
 }
 
 bool UInv_InventoryBase::IsItemTypeAllowed(const FInv_RealItemData& ItemData) const

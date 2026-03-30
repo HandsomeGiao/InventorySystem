@@ -445,6 +445,19 @@ const FInv_RealItemData *FInv_ItemList::FindItem(const FGuid &ItemId) const
     return nullptr;
 }
 
+const FInv_RealItemData *FInv_ItemList::FindItemBySlotIndex(int32 SlotIndex) const
+{
+    // 线性搜索
+    for (const FInv_ItemFastArrayItem &Item : Items)
+    {
+        if (Item.RealItemData.SlotIndex == SlotIndex)
+        {
+            return &Item.RealItemData;
+        }
+    }
+    return nullptr;
+}
+
 FInv_RealItemData *FInv_ItemList::FindItemMutable(const FGuid &ItemId)
 {
     // 线性搜索

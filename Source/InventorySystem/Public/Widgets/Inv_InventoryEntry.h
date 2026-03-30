@@ -7,6 +7,7 @@
 
 class UImage;
 class UTextBlock;
+class UInv_InventoryWidgetBase;
 
 UCLASS(Blueprintable, BlueprintType)
 class INVENTORYSYSTEM_API UInv_InventoryEntry : public UUserWidget
@@ -24,6 +25,7 @@ public:
 	void SetInfo(const FInv_RealItemData& RealItemData);
 	void ClearEntry();
 	void SetWidgetIndex(int32 InIndex) { WidgetIndex = InIndex; }
+	void SetInventoryWidget(UInv_InventoryWidgetBase* InInventoryWidget) { InventoryWidget = InInventoryWidget; }
 
 	// ========== 多播 ============
 	DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnItemOptions, int32, WidgetIndex);
@@ -34,6 +36,10 @@ protected:
 	// ========== override func =============
 
 	virtual FReply NativeOnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent) override;
+	virtual void NativeOnDragDetected(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent,
+	                                  UDragDropOperation*& OutOperation) override;
+	virtual bool NativeOnDrop(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent,
+	                          UDragDropOperation* InOperation) override;
 
 	// ========== UI 组件（蓝图绑定）==========
 
@@ -47,6 +53,7 @@ private:
 
 	int32 WidgetIndex;
 	FInv_RealItemData CurrentItemData;
+	TWeakObjectPtr<UInv_InventoryWidgetBase> InventoryWidget;
 
 	// ========== 内部辅助方法 ==========
 	void UpdateIcon(UTexture2D* Icon);

@@ -5,6 +5,7 @@
 #include "Items/Data/Inv_RealItemData.h"
 #include "Inv_InventoryWidgetBase.generated.h"
 
+class UInv_InventoryBase;
 class UInv_ItemOptionsWidget;
 class UInv_InventoryEntry;
 class UUniformGridPanel;
@@ -42,6 +43,10 @@ public:
 	void ClearSlot(int32 SlotIndex);
 	UFUNCTION(BlueprintCallable, Category = "Inventory System|UI")
 	void ClearAllSlots();
+
+	void SetInventory(UInv_InventoryBase* InInventory);
+	UInv_InventoryBase* GetInventory() const { return BoundInventory.Get(); }
+	void RequestItemDrop(UInv_InventoryBase* SourceInventory, const FGuid& SourceItemId, int32 TargetSlotIndex);
 
 	// ========== 查询接口 ==========
 
@@ -83,6 +88,7 @@ protected:
 	int32 ColumnsPerRow;
 	int32 TotalSlots;
 	TWeakObjectPtr<UInv_ItemOptionsWidget> ItemOptionsWidgetInstance;
+	TWeakObjectPtr<UInv_InventoryBase> BoundInventory;
 
 	UPROPERTY()
 	TArray<UInv_InventoryEntry*> InventoryEntries;
