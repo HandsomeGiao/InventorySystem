@@ -1,56 +1,37 @@
 #include "Widgets/Inv_InventoryWidgetBase.h"
 #include "Widgets/Inv_InventoryEntry.h"
-#include "Components/PanelWidget.h"
 #include "Components/UniformGridPanel.h"
-#include "Widgets/Inv_ItemOptionsWidget.h"
+#include "Engine/Engine.h"
+#include "GameFramework/PlayerController.h"
 #include "InventorySystem.h"
+#include "Widgets/Inv_ItemOptionsWidget.h"
 
 void UInv_InventoryWidgetBase::AddItem(const FInv_RealItemData &ItemData)
 {
-    for (UInv_InventoryEntry *Entry : InventoryEntries)
-    {
-        if (Entry->IsEmpty())
-        {
-            Entry->SetInfo(ItemData);
-            UE_LOG(LogInventorySystem, Verbose,
-                TEXT("UInv_PlayerInventoryWidget::AddItem: Added item '%s' to an empty slot"),
-                *ItemData.RealItemId.ToString());
-            return;
-        }
-    }
+    UpdateSlot(ItemData);
 }
 
 void UInv_InventoryWidgetBase::UpdateItem(const FInv_RealItemData &ItemData)
 {
-    for (UInv_InventoryEntry *Entry : InventoryEntries)
-    {
-        if (Entry->GetCurrentItemId() == ItemData.RealItemId)
-        {
-            Entry->SetInfo(ItemData);
-            UE_LOG(LogInventorySystem, Verbose,
-                TEXT("UInv_PlayerInventoryWidget::UpdateItem: Updated item '%s' in its slot"),
-                *ItemData.RealItemId.ToString());
-            return;
-        }
-    }
-    UE_LOG(LogInventorySystem, Warning,
-        TEXT("UInv_PlayerInventoryWidget::UpdateItem: Item '%s' not found in any slot"),
-        *ItemData.RealItemId.ToString());
+    UpdateSlot(ItemData);
 }
 
 void UInv_InventoryWidgetBase::RemoveItem(const FGuid &ItemId)
 {
-    for (UInv_InventoryEntry *Entry : InventoryEntries)
+    const int32 SlotIndex = FindSlotIdxByItemId(ItemId);
+    if (SlotIndex == INDEX_NONE)
     {
-        if (Entry->GetCurrentItemId() == ItemId)
-        {
-            Entry->ClearEntry();
-            UE_LOG(LogInventorySystem, Verbose,
-                TEXT("UInv_PlayerInventoryWidget::RemoveItem: Removed item '%s' from its slot"),
-                *ItemId.ToString());
-            return;
-        }
+        UE_LOG(LogInventorySystem, Warning,
+            TEXT("UInv_PlayerInventoryWidget::RemoveItem: Item '%s' not found in any slot"),
+            *ItemId.ToString());
+        return;
     }
+
+    ClearSlot(SlotIndex);
+
+    UE_LOG(LogInventorySystem, Verbose,
+        TEXT("UInv_PlayerInventoryWidget::RemoveItem: Removed item '%s' from slot %d"),
+        *ItemId.ToString(), SlotIndex);
 }
 
 void UInv_InventoryWidgetBase::InitializeInventory(int32 InTotalSlots, int32 InColumnsPerRow)
@@ -85,6 +66,7 @@ void UInv_InventoryWidgetBase::InitializeInventory(int32 InTotalSlots, int32 InC
     // 清空现有格子
     InventoryGrid->ClearChildren();
     InventoryEntries.Empty();
+    ItemIdToSlotIndex.Empty();
 
     // 创建格子
     for (int32 i = 0; i < TotalSlots; ++i)
@@ -99,14 +81,11 @@ void UInv_InventoryWidgetBase::InitializeInventory(int32 InTotalSlots, int32 InC
 
         Entry->SetWidgetIndex(i);
         InventoryEntries.Add(Entry);
-        Entry->OnItemDrop.AddDynamic(this, &UInv_InventoryWidgetBase::OnItemDroppedFunc);
         Entry->OnItemOptions.AddDynamic(this, &UInv_InventoryWidgetBase::OnItemOptionsFunc);
 
         // 添加到网格（如果是 UniformGridPanel）
-        int32 Row = i / ColumnsPerRow;
-        int32 Column = i % ColumnsPerRow;
-
-        // 可选：设置对齐方式
+        const int32 Row = i / ColumnsPerRow;
+        const int32 Column = i % ColumnsPerRow;
         InventoryGrid->AddChildToUniformGrid(Entry, Row, Column);
     }
 
@@ -121,9 +100,9 @@ void UInv_InventoryWidgetBase::UpdateInventory(const TArray<FInv_RealItemData> &
     ClearAllSlots();
 
     // 更新每个有物品的格子
-    for (int32 i = 0; i < ItemDataArray.Num() && i < InventoryEntries.Num(); ++i)
+    for (const FInv_RealItemData &ItemData : ItemDataArray)
     {
-        UpdateSlot(ItemDataArray[i]);
+        AddItem(ItemData);
     }
 
     UE_LOG(LogInventorySystem, Verbose,
@@ -132,15 +111,29 @@ void UInv_InventoryWidgetBase::UpdateInventory(const TArray<FInv_RealItemData> &
 
 void UInv_InventoryWidgetBase::UpdateSlot(const FInv_RealItemData &ItemData)
 {
-    const int32 SlotIndex = FindSlotIdxByItemId(ItemData.RealItemId);
-    if (SlotIndex == INDEX_NONE)
+    const int32 SlotIndex = ItemData.SlotIndex;
+    if (!IsValidSlotIndex(SlotIndex))
     {
         UE_LOG(LogInventorySystem, Warning,
-            TEXT("UInv_PlayerInventoryWidget::UpdateSlot: Item '%s' not found in any slot"),
-            *ItemData.RealItemId.ToString());
+            TEXT("UInv_PlayerInventoryWidget::UpdateSlot: Invalid SlotIndex %d for item '%s'"),
+            SlotIndex, *ItemData.RealItemId.ToString());
         return;
     }
+
+    const int32 ExistingSlotIndex = FindSlotIdxByItemId(ItemData.RealItemId);
+    if (ExistingSlotIndex != INDEX_NONE && ExistingSlotIndex != SlotIndex)
+    {
+        ClearSlot(ExistingSlotIndex);
+    }
+
+    const FGuid PreviousItemId = InventoryEntries[SlotIndex]->GetCurrentItemId();
+    if (PreviousItemId.IsValid() && PreviousItemId != ItemData.RealItemId)
+    {
+        ItemIdToSlotIndex.Remove(PreviousItemId);
+    }
+
     InventoryEntries[SlotIndex]->SetInfo(ItemData);
+    ItemIdToSlotIndex.FindOrAdd(ItemData.RealItemId) = SlotIndex;
 
     UE_LOG(LogInventorySystem, Verbose,
         TEXT("UInv_PlayerInventoryWidget::UpdateSlot: Updated slot %d with item '%s'"),
@@ -156,6 +149,12 @@ void UInv_InventoryWidgetBase::ClearSlot(int32 SlotIndex)
         return;
     }
 
+    const FGuid ItemId = InventoryEntries[SlotIndex]->GetCurrentItemId();
+    if (ItemId.IsValid())
+    {
+        ItemIdToSlotIndex.Remove(ItemId);
+    }
+
     InventoryEntries[SlotIndex]->ClearEntry();
 
     UE_LOG(LogInventorySystem, Verbose, TEXT("UInv_PlayerInventoryWidget::ClearSlot: Cleared slot %d"), SlotIndex);
@@ -163,6 +162,8 @@ void UInv_InventoryWidgetBase::ClearSlot(int32 SlotIndex)
 
 void UInv_InventoryWidgetBase::ClearAllSlots()
 {
+    ItemIdToSlotIndex.Empty();
+
     for (UInv_InventoryEntry *Entry : InventoryEntries)
     {
         if (Entry)
@@ -181,6 +182,11 @@ int32 UInv_InventoryWidgetBase::FindSlotIdxByItemId(const FGuid &ItemId) const
         return INDEX_NONE;
     }
 
+    if (const int32 *SlotIndex = ItemIdToSlotIndex.Find(ItemId))
+    {
+        return IsValidSlotIndex(*SlotIndex) ? *SlotIndex : INDEX_NONE;
+    }
+
     for (int32 i = 0; i < InventoryEntries.Num(); ++i)
     {
         if (InventoryEntries[i] && InventoryEntries[i]->GetCurrentItemId() == ItemId)
@@ -192,15 +198,19 @@ int32 UInv_InventoryWidgetBase::FindSlotIdxByItemId(const FGuid &ItemId) const
     return INDEX_NONE;
 }
 
-void UInv_InventoryWidgetBase::OnItemDroppedFunc(FGuid SourceItemId, FGuid TargetItemId)
-{
-    OnItemDrop.Broadcast(SourceItemId, TargetItemId);
-}
-
 void UInv_InventoryWidgetBase::OnItemOptionsFunc(int32 WidgetIndex)
 {
+    if (!InventoryEntries.IsValidIndex(WidgetIndex) || !InventoryEntries[WidgetIndex] ||
+        !InventoryEntries[WidgetIndex]->GetCurrentItemId().IsValid())
+    {
+        return;
+    }
+
     if (ItemOptionsWidgetInstance.IsValid())
+    {
         ItemOptionsWidgetInstance->RemoveFromParent();
+    }
+
     // 创建一个Inv_ItemOptionsWidget,使其显示在鼠标位置
     ItemOptionsWidgetInstance = CreateWidget<UInv_ItemOptionsWidget>(this, ItemOptionsWidgetClass);
     if (ItemOptionsWidgetInstance.IsValid())
@@ -210,10 +220,14 @@ void UInv_InventoryWidgetBase::OnItemOptionsFunc(int32 WidgetIndex)
         //得到鼠标位置
         FVector2D MousePosition(FVector2D::Zero());
         if (APlayerController *PC = GetWorld()->GetFirstPlayerController())
+        {
             PC->GetMousePosition(MousePosition.X, MousePosition.Y);
+        }
         else
+        {
             UE_LOG(LogInventorySystem, Warning,
-            TEXT("UInv_InventoryWidgetBase::OnItemOptionsFunc: Failed to get PlayerController for mouse position"));
+                TEXT("UInv_InventoryWidgetBase::OnItemOptionsFunc: Failed to get PlayerController for mouse position"));
+        }
 
         // 需要注意的是,如果这里的mouse pisition超出屏幕范围,可能导致显示异常,需要进行调整
         MousePosition.X = FMath::Clamp(MousePosition.X, 0.f, GEngine->GameViewport->Viewport->GetSizeXY().X - 300.f);

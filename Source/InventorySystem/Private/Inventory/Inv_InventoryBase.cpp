@@ -1,5 +1,6 @@
 #include "Inventory/Inv_InventoryBase.h"
 #include "Engine/World.h"
+#include "GameFramework/PlayerController.h"
 #include "InventorySystem.h"
 #include "Items/Component/Inv_ItemComponent.h"
 #include "Net/UnrealNetwork.h"
@@ -23,27 +24,123 @@ void UInv_InventoryBase::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& O
 	DOREPLIFETIME(UInv_InventoryBase, ItemList);
 }
 
-void UInv_InventoryBase::CreateInvWidget()
+UInv_InventoryWidgetBase* UInv_InventoryBase::CreateInventoryWidget(APlayerController* OwningPlayer,
+                                                                    bool bAddToViewport)
 {
-	// 创建UI窗口,需要注意,只会在客户端创建UI窗口
-	if (GetNetMode() != NM_DedicatedServer && IsValid(InventoryWidgetClass))
+	if (GetNetMode() == NM_DedicatedServer)
 	{
-		InventoryWidgetInstance = CreateWidget<UInv_InventoryWidgetBase>(GetWorld()->GetFirstPlayerController(),
-		                                                                 InventoryWidgetClass);
-		if (InventoryWidgetInstance.IsValid())
-		{
-			InventoryWidgetInstance->AddToViewport();
-			InventoryWidgetInstance->InitializeInventory(MaxSlots, PerRowCount);
-			InventoryWidgetInstance->OnItemDrop.AddDynamic(this, &ThisClass::ServerOnItemDroppedFunc);
-			InventoryWidgetInstance->OnItemSplit.AddDynamic(this, &ThisClass::ServerOnItemSplitFunc);
-		}
+		return nullptr;
 	}
 
-	if (!InventoryWidgetInstance.IsValid())
+	if (InventoryWidgetInstance.IsValid())
+	{
+		RefreshInventoryWidget();
+
+		if (bAddToViewport && !InventoryWidgetInstance->IsInViewport())
+		{
+			InventoryWidgetInstance->AddToViewport();
+		}
+
+		return InventoryWidgetInstance.Get();
+	}
+
+	if (!IsValid(InventoryWidgetClass))
 	{
 		UE_LOG(LogInventorySystem, Error,
-		       TEXT("UInv_InventoryBase::BeginPlay: Failed to create InventoryWidgetInstance"));
+		       TEXT("UInv_InventoryBase::CreateInventoryWidget: InventoryWidgetClass is invalid"));
+		return nullptr;
 	}
+
+	if (!IsValid(OwningPlayer))
+	{
+		OwningPlayer = GetWorld() ? GetWorld()->GetFirstPlayerController() : nullptr;
+	}
+
+	if (!IsValid(OwningPlayer))
+	{
+		UE_LOG(LogInventorySystem, Warning,
+		       TEXT("UInv_InventoryBase::CreateInventoryWidget: Failed to get OwningPlayer"));
+		return nullptr;
+	}
+
+	UInv_InventoryWidgetBase* NewWidget = CreateWidget<UInv_InventoryWidgetBase>(OwningPlayer, InventoryWidgetClass);
+	if (!IsValid(NewWidget))
+	{
+		UE_LOG(LogInventorySystem, Error,
+		       TEXT("UInv_InventoryBase::CreateInventoryWidget: Failed to create InventoryWidgetInstance"));
+		return nullptr;
+	}
+
+	if (bAddToViewport)
+	{
+		NewWidget->AddToViewport();
+	}
+
+	BindInventoryWidget(NewWidget);
+
+	return NewWidget;
+}
+
+void UInv_InventoryBase::BindInventoryWidget(UInv_InventoryWidgetBase* InInventoryWidget)
+{
+	if (GetNetMode() == NM_DedicatedServer)
+	{
+		return;
+	}
+
+	if (!IsValid(InInventoryWidget))
+	{
+		UE_LOG(LogInventorySystem, Warning,
+		       TEXT("UInv_InventoryBase::BindInventoryWidget: InInventoryWidget is invalid"));
+		return;
+	}
+
+	if (InventoryWidgetInstance.Get() == InInventoryWidget)
+	{
+		RefreshInventoryWidget();
+		return;
+	}
+
+	UnbindInventoryWidget();
+
+	InventoryWidgetInstance = InInventoryWidget;
+	InventoryWidgetInstance->InitializeInventory(MaxSlots, PerRowCount);
+	InventoryWidgetInstance->OnItemSplit.AddDynamic(this, &ThisClass::ServerOnItemSplitFunc);
+
+	RefreshInventoryWidget();
+}
+
+void UInv_InventoryBase::UnbindInventoryWidget()
+{
+	if (!InventoryWidgetInstance.IsValid())
+	{
+		return;
+	}
+
+	InventoryWidgetInstance->OnItemSplit.RemoveDynamic(this, &ThisClass::ServerOnItemSplitFunc);
+	InventoryWidgetInstance.Reset();
+}
+
+void UInv_InventoryBase::DestroyInventoryWidget()
+{
+	if (!InventoryWidgetInstance.IsValid())
+	{
+		return;
+	}
+
+	UInv_InventoryWidgetBase* WidgetToDestroy = InventoryWidgetInstance.Get();
+	UnbindInventoryWidget();
+	WidgetToDestroy->RemoveFromParent();
+}
+
+void UInv_InventoryBase::RefreshInventoryWidget()
+{
+	if (!InventoryWidgetInstance.IsValid())
+	{
+		return;
+	}
+
+	InventoryWidgetInstance->UpdateInventory(GetAllItems());
 }
 
 void UInv_InventoryBase::BeginPlay()
@@ -59,13 +156,17 @@ void UInv_InventoryBase::BeginPlay()
 	UE_LOG(LogInventorySystem, Log, TEXT("UInv_InventoryBase::BeginPlay: Inventory initialized on %s"),
 	       GetOwner()->HasAuthority() ? TEXT("Server") : TEXT("Client"));
 
-	CreateInvWidget();
+	if (bAutoCreateInventoryWidget)
+	{
+		CreateInventoryWidget();
+	}
 }
 
 void UInv_InventoryBase::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	// 解绑委托
 	UnbindFastArrayDelegates();
+	DestroyInventoryWidget();
 
 	Super::EndPlay(EndPlayReason);
 }
@@ -97,6 +198,11 @@ TArray<FGuid> UInv_InventoryBase::GetAllItemIds() const
 	return ItemList.GetAllItemIds();
 }
 
+TArray<FInv_RealItemData> UInv_InventoryBase::GetAllItems() const
+{
+	return ItemList.GetAllItems();
+}
+
 // ========== 修改接口实现 ==========
 
 bool UInv_InventoryBase::TryAddItemInstanceIndividually(const FInv_RealItemData& ItemData)
@@ -117,14 +223,25 @@ bool UInv_InventoryBase::TryAddItemInstanceIndividually(const FInv_RealItemData&
 		return false;
 	}
 
+	const int32 EmptySlotIndex = FindFirstEmptySlotIndex();
+	if (EmptySlotIndex == INDEX_NONE)
+	{
+		UE_LOG(LogInventorySystem, Warning,
+		       TEXT("UInv_InventoryBase::TryAddItemInstance: No empty slot available"));
+		return false;
+	}
+
+	FInv_RealItemData NewItemData = ItemData;
+	NewItemData.SlotIndex = EmptySlotIndex;
+
 	// 添加到 FastArray
-	const bool bSuccess = ItemList.TryAddNewItem(ItemData);
+	const bool bSuccess = ItemList.TryAddNewItem(NewItemData);
 
 	if (bSuccess)
 	{
 		UE_LOG(LogInventorySystem, Display,
-		       TEXT("UInv_InventoryBase::TryAddItemInstance: Successfully added item '%s'"),
-		       *ItemData.RealItemId.ToString());
+		       TEXT("UInv_InventoryBase::TryAddItemInstance: Successfully added item '%s' to SlotIndex %d"),
+		       *ItemData.RealItemId.ToString(), EmptySlotIndex);
 	}
 
 	return bSuccess;
@@ -227,8 +344,22 @@ bool UInv_InventoryBase::UpdateItem(const FGuid& ItemId, const FInv_RealItemData
 		return false;
 	}
 
+	const FInv_RealItemData* OldItemData = ItemList.FindItem(ItemId);
+	if (!OldItemData)
+	{
+		UE_LOG(LogInventorySystem, Warning, TEXT("UInv_InventoryBase::UpdateItem: Failed to find item '%s'"),
+		       *ItemId.ToString());
+		return false;
+	}
+
+	FInv_RealItemData FinalItemData = NewItemData;
+	if (FinalItemData.SlotIndex == INDEX_NONE)
+	{
+		FinalItemData.SlotIndex = OldItemData->SlotIndex;
+	}
+
 	// 执行更新
-	const bool bSuccess = ItemList.UpdateItem(ItemId, NewItemData);
+	const bool bSuccess = ItemList.UpdateItem(ItemId, FinalItemData);
 
 	if (bSuccess)
 	{
@@ -332,7 +463,9 @@ bool UInv_InventoryBase::TryPickupItem(AActor* ItemActor)
 
 	//只要捡起了一部分的物品,就会调用这个函数
 	if (bSuccess)
+	{
 		ItemComp->OnPickedUp(GetOwner());
+	}
 
 	return bSuccess;
 }
@@ -349,15 +482,21 @@ void UInv_InventoryBase::ServerPickupItem_Implementation(AActor* ItemActor)
 void UInv_InventoryBase::OnItemAdded(const FInv_RealItemData& ItemData)
 {
 	if (IsInventoryFull())
+	{
 		UE_LOG(LogInventorySystem, Display,
-	       TEXT("UInv_InventoryBase::OnItemAdded: Inventory is full after adding item '%s'"),
-	       *ItemData.RealItemId.ToString());
+		       TEXT("UInv_InventoryBase::OnItemAdded: Inventory is full after adding item '%s'"),
+		       *ItemData.RealItemId.ToString());
+	}
 
 	if (GetNetMode() != NM_DedicatedServer)
+	{
 		OnItemAddedCustomEvent.Broadcast(ItemData);
+	}
 
 	if (InventoryWidgetInstance.IsValid())
+	{
 		InventoryWidgetInstance->AddItem(ItemData);
+	}
 
 	// 基类默认实现：仅记录日志
 	UE_LOG(LogInventorySystem, Log, TEXT("UInv_InventoryBase::OnItemAdded: Item '%s' added (Role: %s)"),
@@ -368,10 +507,14 @@ void UInv_InventoryBase::OnItemAdded(const FInv_RealItemData& ItemData)
 void UInv_InventoryBase::OnItemChanged(const FInv_RealItemData& ItemData)
 {
 	if (GetNetMode() != NM_DedicatedServer)
+	{
 		OnItemChangedCustomEvent.Broadcast(ItemData);
+	}
 
 	if (InventoryWidgetInstance.IsValid())
+	{
 		InventoryWidgetInstance->UpdateItem(ItemData);
+	}
 
 	// 基类默认实现：仅记录日志
 	UE_LOG(LogInventorySystem, Display, TEXT("UInv_InventoryBase::OnItemChanged: Item '%s' changed (Role: %s)"),
@@ -382,10 +525,14 @@ void UInv_InventoryBase::OnItemChanged(const FInv_RealItemData& ItemData)
 void UInv_InventoryBase::OnItemRemoved(FGuid ItemId)
 {
 	if (GetNetMode() != NM_DedicatedServer)
+	{
 		OnItemRemovedCustomEvent.Broadcast(ItemId);
+	}
 
 	if (InventoryWidgetInstance.IsValid())
+	{
 		InventoryWidgetInstance->RemoveItem(ItemId);
+	}
 
 	// 基类默认实现：仅记录日志
 	UE_LOG(LogInventorySystem, Display, TEXT("UInv_InventoryBase::OnItemRemoved: Item '%s' removed (Role: %s)"),
@@ -456,10 +603,25 @@ void UInv_InventoryBase::UnbindFastArrayDelegates()
 	UE_LOG(LogInventorySystem, Display, TEXT("UInv_InventoryBase::UnbindFastArrayDelegates: Delegates unbound"));
 }
 
+int32 UInv_InventoryBase::FindFirstEmptySlotIndex() const
+{
+	for (int32 SlotIndex = 0; SlotIndex < MaxSlots; ++SlotIndex)
+	{
+		if (!ItemList.IsSlotOccupied(SlotIndex))
+		{
+			return SlotIndex;
+		}
+	}
+
+	return INDEX_NONE;
+}
+
 bool UInv_InventoryBase::IsItemTypeAllowed(const FInv_RealItemData& ItemData) const
 {
 	if (!bUseItemTypeFilter)
+	{
 		return true;
+	}
 
 	// 获取物品的类型标签
 	const FInv_VirtualItemData* VirtualData = ItemData.GetVirtualItemData();
@@ -491,14 +653,19 @@ void UInv_InventoryBase::ServerOnItemSplitFunc_Implementation(FGuid ItemId, int3
 		return;
 	}
 
-	if (!ItemList.TrySplitItem(ItemId, SplitCount))
-		UE_LOG(LogInventorySystem, Warning,
-	       TEXT("UInv_InventoryBase::OnItemSplitFunc: Failed to split item '%s' with count %d"),
-	       *ItemId.ToString(), SplitCount);
-}
+	const int32 EmptySlotIndex = FindFirstEmptySlotIndex();
+	if (EmptySlotIndex == INDEX_NONE)
+	{
+		UE_LOG(LogInventorySystem, Display,
+		       TEXT("UInv_InventoryBase::OnItemSplitFunc: No empty slot for item '%s'"),
+		       *ItemId.ToString());
+		return;
+	}
 
-void UInv_InventoryBase::ServerOnItemDroppedFunc_Implementation(FGuid SourceItemId, FGuid TargetItemId)
-{
-	// TODO:这里是只要发生了物品拖拽,就会发送RPC,也许可以通过条件检查进行优化,减少不必要的RPC发送
-	ItemList.TryDropItem(SourceItemId, TargetItemId);
+	if (!ItemList.TrySplitItem(ItemId, SplitCount, EmptySlotIndex))
+	{
+		UE_LOG(LogInventorySystem, Warning,
+		       TEXT("UInv_InventoryBase::OnItemSplitFunc: Failed to split item '%s' with count %d"),
+		       *ItemId.ToString(), SplitCount);
+	}
 }

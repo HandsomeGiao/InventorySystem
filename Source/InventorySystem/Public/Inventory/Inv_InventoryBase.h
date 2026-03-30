@@ -6,6 +6,7 @@
 #include "GameplayTagContainer.h"
 #include "Inv_InventoryBase.generated.h"
 
+class APlayerController;
 class UInv_InventoryWidgetBase;
 
 UCLASS(ClassGroup = (InventorySystem), meta = (BlueprintSpawnableComponent))
@@ -23,9 +24,31 @@ public:
 	int32 GetItemsCount() const;
 	bool IsInventoryEmpty() const;
 	TArray<FGuid> GetAllItemIds() const;
+	TArray<FInv_RealItemData> GetAllItems() const;
 	bool IsInventoryFull() const { return MaxSlots > 0 && GetItemsCount() >= MaxSlots; }
 	int32 GetRemainingSlots() const { return MaxSlots - GetItemsCount(); }
 	int32 GetMaxSlots() const { return MaxSlots; }
+
+	// ========== UI接口 ==========
+
+	UFUNCTION(BlueprintCallable, Category = "Inventory System|UI")
+	UInv_InventoryWidgetBase* CreateInventoryWidget(APlayerController* OwningPlayer = nullptr,
+	                                                bool bAddToViewport = true);
+
+	UFUNCTION(BlueprintCallable, Category = "Inventory System|UI")
+	void BindInventoryWidget(UInv_InventoryWidgetBase* InInventoryWidget);
+
+	UFUNCTION(BlueprintCallable, Category = "Inventory System|UI")
+	void UnbindInventoryWidget();
+
+	UFUNCTION(BlueprintCallable, Category = "Inventory System|UI")
+	void DestroyInventoryWidget();
+
+	UFUNCTION(BlueprintCallable, Category = "Inventory System|UI")
+	void RefreshInventoryWidget();
+
+	UFUNCTION(BlueprintPure, Category = "Inventory System|UI")
+	UInv_InventoryWidgetBase* GetInventoryWidget() const { return InventoryWidgetInstance.Get(); }
 
 	// ========== 修改接口（仅服务端）==========
 
@@ -43,9 +66,9 @@ public:
 
 	// ========== 委托定义 ==========
 
-	DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnItemAddedDelegate, const FInv_RealItemData &, ItemData);
+	DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnItemAddedDelegate, const FInv_RealItemData&, ItemData);
 
-	DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnItemChangedDelegate, const FInv_RealItemData &, ItemData);
+	DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnItemChangedDelegate, const FInv_RealItemData&, ItemData);
 
 	DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnItemRemovedDelegate, FGuid, ItemId);
 
@@ -61,7 +84,7 @@ public:
 
 protected:
 	// ========== override func =============
-	
+
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
@@ -88,6 +111,9 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Inventory System|UI")
 	TSubclassOf<UInv_InventoryWidgetBase> InventoryWidgetClass;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory System|UI")
+	bool bAutoCreateInventoryWidget{true};
+
 	// ========== 验证接口（可被子类重写）==========
 
 	// 能否将该物品不做堆叠地添加
@@ -113,7 +139,7 @@ private:
 
 	// ========== 内部辅助方法 ==========
 
-	void CreateInvWidget();
+	int32 FindFirstEmptySlotIndex() const;
 	bool IsItemTypeAllowed(const FInv_RealItemData& ItemData) const;
 
 	UFUNCTION()
@@ -124,8 +150,5 @@ private:
 	void OnItemRemoved(FGuid ItemId);
 
 	UFUNCTION(Server, Reliable)
-	void ServerOnItemDroppedFunc(FGuid SourceItemId, FGuid TargetItemId);
-	UFUNCTION(Server, Reliable)
 	void ServerOnItemSplitFunc(FGuid ItemId, int32 SplitCount);
-
 };

@@ -5,7 +5,6 @@
 #include "Items/Data/Inv_RealItemData.h"
 #include "Inv_InventoryEntry.generated.h"
 
-class UInv_ItemOptionsWidget;
 class UImage;
 class UTextBlock;
 
@@ -27,21 +26,14 @@ public:
 	void SetWidgetIndex(int32 InIndex) { WidgetIndex = InIndex; }
 
 	// ========== 多播 ============
-	DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnItemDrop, FGuid, SourceItemId, FGuid, TargetItemId);
-
 	DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnItemOptions, int32, WidgetIndex);
 
-	FOnItemDrop OnItemDrop;
 	FOnItemOptions OnItemOptions;
 
 protected:
 	// ========== override func =============
 
 	virtual FReply NativeOnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent) override;
-	virtual void NativeOnDragDetected(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent,
-	                                  UDragDropOperation*& OutOperation) override;
-	virtual bool NativeOnDrop(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent,
-	                          UDragDropOperation* InOperation) override;
 
 	// ========== UI 组件（蓝图绑定）==========
 

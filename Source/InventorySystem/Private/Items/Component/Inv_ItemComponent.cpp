@@ -42,6 +42,7 @@ void UInv_ItemComponent::BeginPlay()
 	if (GetOwner()->HasAuthority())
 	{
 		RealItemData.RealItemId = FGuid::NewGuid();
+		RealItemData.SlotIndex = INDEX_NONE;
 		if (auto VData = RealItemData.VirtualItemDataHandle.GetRow<FInv_VirtualItemData>("GetVirtualData"))
 		{
 			RealItemData.InstanceFragments = VData->InstanceRealItemFragmentsTemplate;

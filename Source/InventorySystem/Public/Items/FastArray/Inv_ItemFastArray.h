@@ -141,7 +141,7 @@ struct INVENTORYSYSTEM_API FInv_ItemList : public FFastArraySerializer
     /**
      *  尝试拆分物品
      */
-    bool TrySplitItem(FGuid ItemId, int32 SplitCount);
+    bool TrySplitItem(FGuid ItemId, int32 SplitCount, int32 TargetSlotIndex);
 
     /**
      * 移除物品（仅服务端）
@@ -198,6 +198,11 @@ struct INVENTORYSYSTEM_API FInv_ItemList : public FFastArraySerializer
     TArray<FGuid> GetAllItemIds() const;
 
     /**
+     * 获取所有物品数据
+     */
+    TArray<FInv_RealItemData> GetAllItems() const;
+
+    /**
      * 遍历所有物品（使用回调）
      * @param Callback 对每个物品调用的回调函数
      */
@@ -238,6 +243,11 @@ struct INVENTORYSYSTEM_API FInv_ItemList : public FFastArraySerializer
      * 检查是否包含指定 ID 的物品
      */
     bool ContainRealItem(const FGuid &ItemId) const;
+
+    /**
+     * 指定槽位是否已被占用
+     */
+    bool IsSlotOccupied(int32 SlotIndex) const;
 
     // ========== 内部辅助方法 ==========
 

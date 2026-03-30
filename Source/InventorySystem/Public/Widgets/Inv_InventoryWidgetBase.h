@@ -7,7 +7,6 @@
 
 class UInv_ItemOptionsWidget;
 class UInv_InventoryEntry;
-class UPanelWidget;
 class UUniformGridPanel;
 
 /**
@@ -55,18 +54,13 @@ public:
 	bool IsValidSlotIndex(int32 SlotIndex) const;
 
 	// ========= 事件广播 ==========
-	DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnItemDrop, FGuid, SourceItemId, FGuid, TargetItemId);
-
 	DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnItemSplit, FGuid, ItemId, int32, SplitCount);
 
-	FOnItemDrop OnItemDrop;
 	FOnItemSplit OnItemSplit;
 
 protected:
 	// ========= 辅助函数 ==============
 
-	UFUNCTION()
-	void OnItemDroppedFunc(FGuid SourceItemId, FGuid TargetItemId);
 	UFUNCTION()
 	void OnItemOptionsFunc(int32 WidgetIndex);
 	UFUNCTION()
@@ -92,4 +86,6 @@ protected:
 
 	UPROPERTY()
 	TArray<UInv_InventoryEntry*> InventoryEntries;
+
+	TMap<FGuid, int32> ItemIdToSlotIndex;
 };

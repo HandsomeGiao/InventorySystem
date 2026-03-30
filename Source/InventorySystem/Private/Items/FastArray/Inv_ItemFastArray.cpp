@@ -64,11 +64,25 @@ bool FInv_ItemList::TryAddNewItem(const FInv_RealItemData &ItemData)
         return false;
     }
 
+    if (ItemData.SlotIndex == INDEX_NONE)
+    {
+        UE_LOG(LogInventorySystem, Warning, TEXT("FInv_ItemList::AddItem: Item '%s' has invalid SlotIndex!"),
+            *ItemData.RealItemId.ToString());
+        return false;
+    }
+
     // 检查是否已存在相同 ID 的物品
     if (ContainRealItem(ItemData.RealItemId))
     {
         UE_LOG(LogInventorySystem, Warning, TEXT("FInv_ItemList::AddItem: Item with ID '%s' already exists!"),
             *ItemData.RealItemId.ToString());
+        return false;
+    }
+
+    if (IsSlotOccupied(ItemData.SlotIndex))
+    {
+        UE_LOG(LogInventorySystem, Warning, TEXT("FInv_ItemList::AddItem: SlotIndex '%d' is already occupied!"),
+            ItemData.SlotIndex);
         return false;
     }
 
@@ -224,7 +238,7 @@ void FInv_ItemList::TryDropItem(FGuid SourceItemId, FGuid TargetItemId)
     }
 }
 
-bool FInv_ItemList::TrySplitItem(FGuid ItemId, int32 SplitCount)
+bool FInv_ItemList::TrySplitItem(FGuid ItemId, int32 SplitCount, int32 TargetSlotIndex)
 {
     if (!IsServer())
     {
@@ -250,6 +264,22 @@ bool FInv_ItemList::TrySplitItem(FGuid ItemId, int32 SplitCount)
         return false;
     }
 
+    if (TargetSlotIndex == INDEX_NONE || TargetSlotIndex == OldItemData.SlotIndex)
+    {
+        UE_LOG(LogInventorySystem, Warning,
+            TEXT("FInv_ItemList::TrySplitItem: Invalid TargetSlotIndex %d for item '%s'"),
+            TargetSlotIndex, *ItemId.ToString());
+        return false;
+    }
+
+    if (IsSlotOccupied(TargetSlotIndex))
+    {
+        UE_LOG(LogInventorySystem, Warning,
+            TEXT("FInv_ItemList::TrySplitItem: TargetSlotIndex %d is already occupied for item '%s'"),
+            TargetSlotIndex, *ItemId.ToString());
+        return false;
+    }
+
     OldItemData.StackCount -= SplitCount;
     MarkItemDirty(OldItemEntry);
 
@@ -258,6 +288,7 @@ bool FInv_ItemList::TrySplitItem(FGuid ItemId, int32 SplitCount)
     NewItemEntry.RealItemData = OldItemData; // 复制原有数据
     NewItemEntry.RealItemData.StackCount = SplitCount; // 设置新物品的堆叠数量
     NewItemEntry.RealItemData.RealItemId = FGuid::NewGuid();
+    NewItemEntry.RealItemData.SlotIndex = TargetSlotIndex;
     MarkItemDirty(NewItemEntry);
 
     if (OwnerComponent.IsValid())
@@ -432,6 +463,24 @@ bool FInv_ItemList::ContainRealItem(const FGuid &ItemId) const
     return FindItem(ItemId) != nullptr;
 }
 
+bool FInv_ItemList::IsSlotOccupied(int32 SlotIndex) const
+{
+    if (SlotIndex == INDEX_NONE)
+    {
+        return false;
+    }
+
+    for (const FInv_ItemFastArrayItem &Item : Items)
+    {
+        if (Item.RealItemData.SlotIndex == SlotIndex)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 TArray<FGuid> FInv_ItemList::GetAllItemIds() const
 {
     TArray<FGuid> ItemIds;
@@ -443,6 +492,19 @@ TArray<FGuid> FInv_ItemList::GetAllItemIds() const
     }
 
     return ItemIds;
+}
+
+TArray<FInv_RealItemData> FInv_ItemList::GetAllItems() const
+{
+    TArray<FInv_RealItemData> ItemDataArray;
+    ItemDataArray.Reserve(Items.Num());
+
+    for (const FInv_ItemFastArrayItem &Item : Items)
+    {
+        ItemDataArray.Add(Item.RealItemData);
+    }
+
+    return ItemDataArray;
 }
 
 void FInv_ItemList::ForEachItem(TFunctionRef<void(const FInv_RealItemData &)> Callback) const

@@ -4,8 +4,6 @@
 #include "Items/Data/Inv_VirtualItemData.h"
 #include "Items/Fragments/VirtualItem/Inv_VirtualItemFragment.h"
 #include "InventorySystem.h"
-#include "Subsystem/Inv_VirtualItemDataSubsystem.h"
-#include "Widgets/Inv_InvDragDrop.h"
 
 void UInv_InventoryEntry::SetInfo(const FInv_RealItemData& RealItemData)
 {
@@ -13,7 +11,7 @@ void UInv_InventoryEntry::SetInfo(const FInv_RealItemData& RealItemData)
 	UE_LOG(LogInventorySystem, Display,
 	       TEXT("UInv_InventoryEntry::SetInfo: Setting info for item '%s' (Previous Item ID: '%s')"),
 	       *RealItemData.RealItemId.ToString(),
-	       *RealItemData.RealItemId.ToString());
+	       *CurrentItemData.RealItemId.ToString());
 	// 更新当前物品 ID
 	CurrentItemData = RealItemData;
 
@@ -58,15 +56,7 @@ void UInv_InventoryEntry::ClearEntry()
 
 FReply UInv_InventoryEntry::NativeOnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent)
 {
-	// 我们只关心左键拖拽
-	if (InMouseEvent.GetEffectingButton() == EKeys::LeftMouseButton && GetCurrentItemId().IsValid())
-	{
-		// FReply::Handled() 表示我们处理了这个事件。
-		// .DetectDrag() 告诉Slate："请开始监视这个控件，如果鼠标移动了，就触发 OnDragDetected。"
-		// 我们将 this 作为 "Drag Recipient"，即拖拽事件的响应者。
-		return FReply::Handled().DetectDrag(this->TakeWidget(), EKeys::LeftMouseButton);
-	}
-	else if (InMouseEvent.GetEffectingButton() == EKeys::RightMouseButton && GetCurrentItemId().IsValid())
+	if (InMouseEvent.GetEffectingButton() == EKeys::RightMouseButton && GetCurrentItemId().IsValid())
 	{
 		// 右键点击事件处理
 		OnItemOptions.Broadcast(WidgetIndex);
@@ -74,77 +64,7 @@ FReply UInv_InventoryEntry::NativeOnMouseButtonDown(const FGeometry& InGeometry,
 		       TEXT("UInv_InventoryEntry::NativeOnMouseButtonDown: Right click on WidgetIndex:%d"), WidgetIndex);
 		return FReply::Handled();
 	}
-	return FReply::Unhandled();
-}
-
-void UInv_InventoryEntry::NativeOnDragDetected(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent,
-                                               UDragDropOperation*& OutOperation)
-{
-	Super::NativeOnDragDetected(InGeometry, InMouseEvent, OutOperation);
-
-	if (UInv_InvDragDrop* DragDropOp = NewObject<UInv_InvDragDrop>())
-	{
-		DragDropOp->SourceItemId = CurrentItemData.RealItemId;
-		DragDropOp->SourceWidgetIndex = WidgetIndex;
-		DragDropOp->Payload = this;
-		DragDropOp->DefaultDragVisual = this;
-		DragDropOp->Pivot = EDragPivot::CenterCenter;
-		OutOperation = DragDropOp;
-		UE_LOG(LogInventorySystem, Display,
-		       TEXT("UInv_InventoryEntry::NativeOnDragDetected: Created UInv_InvDragDrop operation,Index:%d, item '%s'"
-		       ),
-		       WidgetIndex,
-		       *CurrentItemData.RealItemId.ToString()
-		);
-	}
-	else
-	{
-		UE_LOG(LogInventorySystem, Warning,
-		       TEXT("UInv_InventoryEntry::NativeOnDragDetected: Failed to create UInv_InvDragDrop operation"));
-	}
-}
-
-bool UInv_InventoryEntry::NativeOnDrop(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent,
-                                       UDragDropOperation* InOperation)
-{
-	if (UInv_InvDragDrop* InvDragOp = Cast<UInv_InvDragDrop>(InOperation))
-	{
-		if (InvDragOp->SourceWidgetIndex == WidgetIndex)
-		{
-			UE_LOG(LogInventorySystem, Display, TEXT("Drop Source Widget, return"));
-			return false;
-		}
-
-		UInv_InventoryEntry* SourceEntry = Cast<UInv_InventoryEntry>(InvDragOp->Payload);
-
-		// 确保源格子有效且有物品
-		if (!SourceEntry->GetCurrentItemData().RealItemId.IsValid())
-		{
-			UE_LOG(LogInventorySystem, Warning,
-			       TEXT("UInv_InventoryEntry::NativeOnDrop: Source entry has no valid item to drop"));
-			return false;
-		}
-
-		// 这里可以处理物品交换逻辑
-		UE_LOG(LogInventorySystem, Display,
-		       TEXT("UInv_InventoryEntry::NativeOnDrop: From WidgetIndex:%d ,GUid:%s , To WidgetIndex:%d, GUid:%s "),
-		       InvDragOp->SourceWidgetIndex, *InvDragOp->SourceItemId.ToString(), WidgetIndex,
-		       *CurrentItemData.RealItemId.ToString());
-
-		// 具体的交换逻辑需要在拥有这个Widget的Inventory Widget中实现
-		if (CurrentItemData.RealItemId.IsValid())
-		{
-			OnItemDrop.Broadcast(InvDragOp->SourceItemId, CurrentItemData.RealItemId);
-		}
-		else
-		{
-			//这里是将一个物品移动到空格子上,不需要服务器参与计算,只需要更改视觉效果即可
-			SetInfo(SourceEntry->GetCurrentItemData());
-			SourceEntry->ClearEntry();
-		}
-		return true; // 接受放下
-	}
-	return false;
+	return Super::NativeOnMouseButtonDown(InGeometry, InMouseEvent);
 }
 
 void UInv_InventoryEntry::UpdateIcon(UTexture2D* Icon)
