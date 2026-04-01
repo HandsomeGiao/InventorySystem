@@ -4,10 +4,12 @@
 #include "Components/ActorComponent.h"
 #include "Items/FastArray/Inv_ItemFastArray.h"
 #include "GameplayTagContainer.h"
+#include "Widgets/Inv_InventoryWidgetTypes.h"
 #include "Inv_InventoryBase.generated.h"
 
 class APlayerController;
 class UInv_InventoryWidgetBase;
+class UInv_InventoryWidgetOwnerSubsystem;
 
 UCLASS(ClassGroup = (InventorySystem), meta = (BlueprintSpawnableComponent))
 class INVENTORYSYSTEM_API UInv_InventoryBase : public UActorComponent
@@ -48,7 +50,39 @@ public:
 	void RefreshInventoryWidget();
 
 	UFUNCTION(BlueprintPure, Category = "Inventory System|UI")
-	UInv_InventoryWidgetBase* GetInventoryWidget() const { return InventoryWidgetInstance.Get(); }
+	UInv_InventoryWidgetBase* GetInventoryWidget() const;
+
+	UFUNCTION(BlueprintCallable, Category = "Inventory System|UI")
+	UInv_InventoryWidgetBase* CreateInventoryWidgetByType(EInv_InventoryWidgetType WidgetType,
+	                                                      APlayerController* OwningPlayer = nullptr,
+	                                                      bool bAddToViewport = true);
+
+	UFUNCTION(BlueprintCallable, Category = "Inventory System|UI")
+	void BindInventoryWidgetByType(EInv_InventoryWidgetType WidgetType, UInv_InventoryWidgetBase* InInventoryWidget);
+
+	UFUNCTION(BlueprintCallable, Category = "Inventory System|UI")
+	void UnbindInventoryWidgetByType(EInv_InventoryWidgetType WidgetType);
+
+	UFUNCTION(BlueprintCallable, Category = "Inventory System|UI")
+	void DestroyInventoryWidgetByType(EInv_InventoryWidgetType WidgetType);
+
+	UFUNCTION(BlueprintCallable, Category = "Inventory System|UI")
+	void RefreshInventoryWidgetByType(EInv_InventoryWidgetType WidgetType);
+
+	UFUNCTION(BlueprintCallable, Category = "Inventory System|UI")
+	void RefreshAllInventoryWidgets();
+
+	UFUNCTION(BlueprintPure, Category = "Inventory System|UI")
+	UInv_InventoryWidgetBase* GetInventoryWidgetByType(EInv_InventoryWidgetType WidgetType) const;
+
+	UFUNCTION(BlueprintPure, Category = "Inventory System")
+	EInv_InventoryOwnerType GetInventoryOwnerType() const { return InventoryOwnerType; }
+
+	UFUNCTION(BlueprintCallable, Category = "Inventory System")
+	void SetInventoryOwnerType(EInv_InventoryOwnerType InInventoryOwnerType) { InventoryOwnerType = InInventoryOwnerType; }
+
+	UFUNCTION(BlueprintPure, Category = "Inventory System|UI")
+	EInv_InventoryWidgetType ResolveInventoryWidgetType(APlayerController* ViewingPlayer = nullptr) const;
 
 	void RequestMoveItem(UInv_InventoryBase* SourceInventory, const FGuid& SourceItemId,
 	                     UInv_InventoryBase* TargetInventory, int32 TargetSlotIndex);
@@ -102,6 +136,9 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory System")
 	int32 PerRowCount{5};
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory System")
+	EInv_InventoryOwnerType InventoryOwnerType{EInv_InventoryOwnerType::Other};
+
 	/**
 	 * 允许存放的物品类型标签（空表示允许所有类型）
 	 * 例如：["Item.Equipment", "Item.Consumable"]
@@ -114,6 +151,12 @@ protected:
 	// Inventory窗口类
 	UPROPERTY(EditAnywhere, Category = "Inventory System|UI")
 	TSubclassOf<UInv_InventoryWidgetBase> InventoryWidgetClass;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory System|UI")
+	EInv_InventoryWidgetType DefaultInventoryWidgetType{EInv_InventoryWidgetType::PlayerSelf};
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory System|UI")
+	TArray<FInv_InventoryWidgetConfig> InventoryWidgetConfigs;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory System|UI")
 	bool bAutoCreateInventoryWidget{true};
@@ -139,10 +182,14 @@ private:
 	UPROPERTY(Replicated)
 	FInv_ItemList ItemList;
 
-	TWeakObjectPtr<UInv_InventoryWidgetBase> InventoryWidgetInstance;
+	UPROPERTY(Transient)
+	TMap<EInv_InventoryWidgetType, TObjectPtr<UInv_InventoryWidgetBase>> InventoryWidgetInstances;
 
 	// ========== 内部辅助方法 ==========
 
+	APlayerController* ResolveInventoryWidgetOwningPlayer(APlayerController* OwningPlayer) const;
+	UInv_InventoryWidgetOwnerSubsystem* ResolveInventoryWidgetOwnerSubsystem(APlayerController* OwningPlayer) const;
+	TSubclassOf<UInv_InventoryWidgetBase> ResolveInventoryWidgetClass(EInv_InventoryWidgetType InWidgetType) const;
 	int32 FindFirstEmptySlotIndex() const;
 	bool IsValidInventorySlotIndex(int32 SlotIndex) const;
 	const FInv_RealItemData* FindItemBySlotIndex(int32 SlotIndex) const;

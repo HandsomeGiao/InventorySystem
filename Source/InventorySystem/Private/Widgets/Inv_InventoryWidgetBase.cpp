@@ -101,6 +101,11 @@ void UInv_InventoryWidgetBase::SetInventory(UInv_InventoryBase* InInventory)
     BoundInventory = InInventory;
 }
 
+void UInv_InventoryWidgetBase::SetInventoryWidgetType(EInv_InventoryWidgetType InWidgetType)
+{
+    InventoryWidgetType = InWidgetType;
+}
+
 void UInv_InventoryWidgetBase::RequestItemDrop(UInv_InventoryBase* SourceInventory, const FGuid& SourceItemId,
                                                int32 TargetSlotIndex)
 {

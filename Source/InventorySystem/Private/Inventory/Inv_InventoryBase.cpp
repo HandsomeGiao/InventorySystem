@@ -1,9 +1,11 @@
 #include "Inventory/Inv_InventoryBase.h"
 #include "Engine/World.h"
+#include "Engine/LocalPlayer.h"
 #include "GameFramework/PlayerController.h"
 #include "InventorySystem.h"
 #include "Items/Component/Inv_ItemComponent.h"
 #include "Net/UnrealNetwork.h"
+#include "Subsystem/Inv_InventoryWidgetOwnerSubsystem.h"
 #include "Subsystem/Inv_VirtualItemDataSubsystem.h"
 #include "Widgets/Inv_InventoryWidgetBase.h"
 
@@ -27,47 +29,82 @@ void UInv_InventoryBase::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& O
 UInv_InventoryWidgetBase* UInv_InventoryBase::CreateInventoryWidget(APlayerController* OwningPlayer,
                                                                     bool bAddToViewport)
 {
+	return CreateInventoryWidgetByType(ResolveInventoryWidgetType(OwningPlayer), OwningPlayer, bAddToViewport);
+}
+
+void UInv_InventoryBase::BindInventoryWidget(UInv_InventoryWidgetBase* InInventoryWidget)
+{
+	BindInventoryWidgetByType(ResolveInventoryWidgetType(InInventoryWidget ? InInventoryWidget->GetOwningPlayer() : nullptr),
+	                          InInventoryWidget);
+}
+
+void UInv_InventoryBase::UnbindInventoryWidget()
+{
+	UnbindInventoryWidgetByType(ResolveInventoryWidgetType());
+}
+
+void UInv_InventoryBase::DestroyInventoryWidget()
+{
+	DestroyInventoryWidgetByType(ResolveInventoryWidgetType());
+}
+
+void UInv_InventoryBase::RefreshInventoryWidget()
+{
+	RefreshInventoryWidgetByType(ResolveInventoryWidgetType());
+}
+
+UInv_InventoryWidgetBase* UInv_InventoryBase::GetInventoryWidget() const
+{
+	return GetInventoryWidgetByType(ResolveInventoryWidgetType());
+}
+
+UInv_InventoryWidgetBase* UInv_InventoryBase::CreateInventoryWidgetByType(EInv_InventoryWidgetType WidgetType,
+                                                                          APlayerController* OwningPlayer,
+                                                                          bool bAddToViewport)
+{
 	if (GetNetMode() == NM_DedicatedServer)
 	{
 		return nullptr;
 	}
 
-	if (InventoryWidgetInstance.IsValid())
+	if (WidgetType == EInv_InventoryWidgetType::None)
 	{
-		RefreshInventoryWidget();
-
-		if (bAddToViewport && !InventoryWidgetInstance->IsInViewport())
-		{
-			InventoryWidgetInstance->AddToViewport();
-		}
-
-		return InventoryWidgetInstance.Get();
+		WidgetType = DefaultInventoryWidgetType;
 	}
 
-	if (!IsValid(InventoryWidgetClass))
+	if (UInv_InventoryWidgetBase* ExistingWidget = GetInventoryWidgetByType(WidgetType))
+	{
+		RefreshInventoryWidgetByType(WidgetType);
+
+		if (bAddToViewport && !ExistingWidget->IsInViewport())
+		{
+			ExistingWidget->AddToViewport();
+		}
+
+		return ExistingWidget;
+	}
+
+	const TSubclassOf<UInv_InventoryWidgetBase> WidgetClass = ResolveInventoryWidgetClass(WidgetType);
+	if (!IsValid(WidgetClass))
 	{
 		UE_LOG(LogInventorySystem, Error,
-		       TEXT("UInv_InventoryBase::CreateInventoryWidget: InventoryWidgetClass is invalid"));
+		       TEXT("UInv_InventoryBase::CreateInventoryWidgetByType: InventoryWidgetClass is invalid"));
 		return nullptr;
 	}
 
-	if (!IsValid(OwningPlayer))
-	{
-		OwningPlayer = GetWorld() ? GetWorld()->GetFirstPlayerController() : nullptr;
-	}
-
+	OwningPlayer = ResolveInventoryWidgetOwningPlayer(OwningPlayer);
 	if (!IsValid(OwningPlayer))
 	{
 		UE_LOG(LogInventorySystem, Warning,
-		       TEXT("UInv_InventoryBase::CreateInventoryWidget: Failed to get OwningPlayer"));
+		       TEXT("UInv_InventoryBase::CreateInventoryWidgetByType: Failed to get OwningPlayer"));
 		return nullptr;
 	}
 
-	UInv_InventoryWidgetBase* NewWidget = CreateWidget<UInv_InventoryWidgetBase>(OwningPlayer, InventoryWidgetClass);
+	UInv_InventoryWidgetBase* NewWidget = CreateWidget<UInv_InventoryWidgetBase>(OwningPlayer, WidgetClass);
 	if (!IsValid(NewWidget))
 	{
 		UE_LOG(LogInventorySystem, Error,
-		       TEXT("UInv_InventoryBase::CreateInventoryWidget: Failed to create InventoryWidgetInstance"));
+		       TEXT("UInv_InventoryBase::CreateInventoryWidgetByType: Failed to create InventoryWidgetInstance"));
 		return nullptr;
 	}
 
@@ -76,73 +113,173 @@ UInv_InventoryWidgetBase* UInv_InventoryBase::CreateInventoryWidget(APlayerContr
 		NewWidget->AddToViewport();
 	}
 
-	BindInventoryWidget(NewWidget);
+	BindInventoryWidgetByType(WidgetType, NewWidget);
 
 	return NewWidget;
 }
 
-void UInv_InventoryBase::BindInventoryWidget(UInv_InventoryWidgetBase* InInventoryWidget)
+void UInv_InventoryBase::BindInventoryWidgetByType(EInv_InventoryWidgetType WidgetType,
+                                                   UInv_InventoryWidgetBase* InInventoryWidget)
 {
 	if (GetNetMode() == NM_DedicatedServer)
 	{
 		return;
 	}
 
+	if (WidgetType == EInv_InventoryWidgetType::None)
+	{
+		WidgetType = DefaultInventoryWidgetType;
+	}
+
 	if (!IsValid(InInventoryWidget))
 	{
 		UE_LOG(LogInventorySystem, Warning,
-		       TEXT("UInv_InventoryBase::BindInventoryWidget: InInventoryWidget is invalid"));
+		       TEXT("UInv_InventoryBase::BindInventoryWidgetByType: InInventoryWidget is invalid"));
 		return;
 	}
 
-	if (InventoryWidgetInstance.Get() == InInventoryWidget)
+	if (GetInventoryWidgetByType(WidgetType) == InInventoryWidget)
 	{
-		RefreshInventoryWidget();
+		RefreshInventoryWidgetByType(WidgetType);
 		return;
 	}
 
-	UnbindInventoryWidget();
+	UInv_InventoryWidgetOwnerSubsystem* WidgetOwnerSubsystem =
+		ResolveInventoryWidgetOwnerSubsystem(InInventoryWidget->GetOwningPlayer());
+	if (WidgetOwnerSubsystem)
+	{
+		UInv_InventoryBase* ActiveInventory = WidgetOwnerSubsystem->FindInventoryWidgetOwner(WidgetType);
+		if (IsValid(ActiveInventory) && ActiveInventory != this)
+		{
+			ActiveInventory->DestroyInventoryWidgetByType(WidgetType);
+		}
+	}
 
-	InventoryWidgetInstance = InInventoryWidget;
-	InventoryWidgetInstance->SetInventory(this);
-	InventoryWidgetInstance->InitializeInventory(MaxSlots, PerRowCount);
-	InventoryWidgetInstance->OnItemSplit.AddDynamic(this, &ThisClass::ServerOnItemSplitFunc);
+	for (auto It = InventoryWidgetInstances.CreateIterator(); It; ++It)
+	{
+		if (It.Value() == InInventoryWidget && It.Key() != WidgetType)
+		{
+			InInventoryWidget->OnItemSplit.RemoveDynamic(this, &ThisClass::ServerOnItemSplitFunc);
+			InInventoryWidget->SetInventory(nullptr);
+			InInventoryWidget->SetInventoryWidgetType(EInv_InventoryWidgetType::None);
+			It.RemoveCurrent();
+			break;
+		}
+	}
 
-	RefreshInventoryWidget();
+	UnbindInventoryWidgetByType(WidgetType);
+
+	InventoryWidgetInstances.FindOrAdd(WidgetType) = InInventoryWidget;
+	InInventoryWidget->SetInventory(this);
+	InInventoryWidget->SetInventoryWidgetType(WidgetType);
+	InInventoryWidget->InitializeInventory(MaxSlots, PerRowCount);
+	InInventoryWidget->OnItemSplit.AddDynamic(this, &ThisClass::ServerOnItemSplitFunc);
+	if (WidgetOwnerSubsystem)
+	{
+		WidgetOwnerSubsystem->RegisterInventoryWidgetOwner(WidgetType, this);
+	}
+
+	RefreshInventoryWidgetByType(WidgetType);
 }
 
-void UInv_InventoryBase::UnbindInventoryWidget()
+void UInv_InventoryBase::UnbindInventoryWidgetByType(EInv_InventoryWidgetType WidgetType)
 {
-	if (!InventoryWidgetInstance.IsValid())
+	if (WidgetType == EInv_InventoryWidgetType::None)
+	{
+		WidgetType = DefaultInventoryWidgetType;
+	}
+
+	UInv_InventoryWidgetBase* InventoryWidgetInstance = GetInventoryWidgetByType(WidgetType);
+	if (!IsValid(InventoryWidgetInstance))
 	{
 		return;
 	}
 
 	InventoryWidgetInstance->OnItemSplit.RemoveDynamic(this, &ThisClass::ServerOnItemSplitFunc);
+	UInv_InventoryWidgetOwnerSubsystem* WidgetOwnerSubsystem =
+		ResolveInventoryWidgetOwnerSubsystem(InventoryWidgetInstance->GetOwningPlayer());
 	InventoryWidgetInstance->SetInventory(nullptr);
-	InventoryWidgetInstance.Reset();
+	InventoryWidgetInstance->SetInventoryWidgetType(EInv_InventoryWidgetType::None);
+	InventoryWidgetInstances.Remove(WidgetType);
+	if (WidgetOwnerSubsystem)
+	{
+		WidgetOwnerSubsystem->UnregisterInventoryWidgetOwner(WidgetType, this);
+	}
 }
 
-void UInv_InventoryBase::DestroyInventoryWidget()
+void UInv_InventoryBase::DestroyInventoryWidgetByType(EInv_InventoryWidgetType WidgetType)
 {
-	if (!InventoryWidgetInstance.IsValid())
+	UInv_InventoryWidgetBase* WidgetToDestroy = GetInventoryWidgetByType(WidgetType);
+	if (!IsValid(WidgetToDestroy))
 	{
 		return;
 	}
 
-	UInv_InventoryWidgetBase* WidgetToDestroy = InventoryWidgetInstance.Get();
-	UnbindInventoryWidget();
+	UnbindInventoryWidgetByType(WidgetType);
 	WidgetToDestroy->RemoveFromParent();
 }
 
-void UInv_InventoryBase::RefreshInventoryWidget()
+void UInv_InventoryBase::RefreshInventoryWidgetByType(EInv_InventoryWidgetType WidgetType)
 {
-	if (!InventoryWidgetInstance.IsValid())
+	UInv_InventoryWidgetBase* InventoryWidgetInstance = GetInventoryWidgetByType(WidgetType);
+	if (!IsValid(InventoryWidgetInstance))
 	{
 		return;
 	}
 
 	InventoryWidgetInstance->UpdateInventory(GetAllItems());
+}
+
+void UInv_InventoryBase::RefreshAllInventoryWidgets()
+{
+	const TArray<FInv_RealItemData> ItemDataArray = GetAllItems();
+	for (const TPair<EInv_InventoryWidgetType, TObjectPtr<UInv_InventoryWidgetBase>>& WidgetPair :
+	     InventoryWidgetInstances)
+	{
+		if (IsValid(WidgetPair.Value))
+		{
+			WidgetPair.Value->UpdateInventory(ItemDataArray);
+		}
+	}
+}
+
+UInv_InventoryWidgetBase* UInv_InventoryBase::GetInventoryWidgetByType(EInv_InventoryWidgetType WidgetType) const
+{
+	if (WidgetType == EInv_InventoryWidgetType::None)
+	{
+		WidgetType = DefaultInventoryWidgetType;
+	}
+
+	if (const TObjectPtr<UInv_InventoryWidgetBase>* FoundWidget = InventoryWidgetInstances.Find(WidgetType))
+	{
+		return FoundWidget->Get();
+	}
+
+	return nullptr;
+}
+
+EInv_InventoryWidgetType UInv_InventoryBase::ResolveInventoryWidgetType(APlayerController* ViewingPlayer) const
+{
+	switch (InventoryOwnerType)
+	{
+	case EInv_InventoryOwnerType::Player:
+		{
+			ViewingPlayer = ResolveInventoryWidgetOwningPlayer(ViewingPlayer);
+			const APawn* ViewingPawn = ViewingPlayer ? ViewingPlayer->GetPawn() : nullptr;
+			return ViewingPawn && ViewingPawn == GetOwner()
+				       ? EInv_InventoryWidgetType::PlayerSelf
+				       : EInv_InventoryWidgetType::PlayerOther;
+		}
+
+	case EInv_InventoryOwnerType::Container:
+		return EInv_InventoryWidgetType::Container;
+
+	case EInv_InventoryOwnerType::Other:
+	default:
+		return DefaultInventoryWidgetType == EInv_InventoryWidgetType::None
+			       ? EInv_InventoryWidgetType::Other
+			       : DefaultInventoryWidgetType;
+	}
 }
 
 void UInv_InventoryBase::RequestMoveItem(UInv_InventoryBase* SourceInventory, const FGuid& SourceItemId,
@@ -194,7 +331,11 @@ void UInv_InventoryBase::BeginPlay()
 
 	if (bAutoCreateInventoryWidget)
 	{
-		CreateInventoryWidget();
+		const EInv_InventoryWidgetType WidgetType = ResolveInventoryWidgetType();
+		if (InventoryOwnerType != EInv_InventoryOwnerType::Player || WidgetType == EInv_InventoryWidgetType::PlayerSelf)
+		{
+			CreateInventoryWidgetByType(WidgetType);
+		}
 	}
 }
 
@@ -202,7 +343,13 @@ void UInv_InventoryBase::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	// 解绑委托
 	UnbindFastArrayDelegates();
-	DestroyInventoryWidget();
+
+	TArray<EInv_InventoryWidgetType> WidgetTypes;
+	InventoryWidgetInstances.GetKeys(WidgetTypes);
+	for (const EInv_InventoryWidgetType WidgetType : WidgetTypes)
+	{
+		DestroyInventoryWidgetByType(WidgetType);
+	}
 
 	Super::EndPlay(EndPlayReason);
 }
@@ -542,9 +689,13 @@ void UInv_InventoryBase::OnItemAdded(const FInv_RealItemData& ItemData)
 		OnItemAddedCustomEvent.Broadcast(ItemData);
 	}
 
-	if (InventoryWidgetInstance.IsValid())
+	for (const TPair<EInv_InventoryWidgetType, TObjectPtr<UInv_InventoryWidgetBase>>& WidgetPair :
+	     InventoryWidgetInstances)
 	{
-		InventoryWidgetInstance->AddItem(ItemData);
+		if (IsValid(WidgetPair.Value))
+		{
+			WidgetPair.Value->AddItem(ItemData);
+		}
 	}
 
 	// 基类默认实现：仅记录日志
@@ -560,9 +711,13 @@ void UInv_InventoryBase::OnItemChanged(const FInv_RealItemData& ItemData)
 		OnItemChangedCustomEvent.Broadcast(ItemData);
 	}
 
-	if (InventoryWidgetInstance.IsValid())
+	for (const TPair<EInv_InventoryWidgetType, TObjectPtr<UInv_InventoryWidgetBase>>& WidgetPair :
+	     InventoryWidgetInstances)
 	{
-		InventoryWidgetInstance->UpdateItem(ItemData);
+		if (IsValid(WidgetPair.Value))
+		{
+			WidgetPair.Value->UpdateItem(ItemData);
+		}
 	}
 
 	// 基类默认实现：仅记录日志
@@ -578,9 +733,13 @@ void UInv_InventoryBase::OnItemRemoved(FGuid ItemId)
 		OnItemRemovedCustomEvent.Broadcast(ItemId);
 	}
 
-	if (InventoryWidgetInstance.IsValid())
+	for (const TPair<EInv_InventoryWidgetType, TObjectPtr<UInv_InventoryWidgetBase>>& WidgetPair :
+	     InventoryWidgetInstances)
 	{
-		InventoryWidgetInstance->RemoveItem(ItemId);
+		if (IsValid(WidgetPair.Value))
+		{
+			WidgetPair.Value->RemoveItem(ItemId);
+		}
 	}
 
 	// 基类默认实现：仅记录日志
@@ -650,6 +809,43 @@ void UInv_InventoryBase::UnbindFastArrayDelegates()
 	}
 
 	UE_LOG(LogInventorySystem, Display, TEXT("UInv_InventoryBase::UnbindFastArrayDelegates: Delegates unbound"));
+}
+
+APlayerController* UInv_InventoryBase::ResolveInventoryWidgetOwningPlayer(APlayerController* OwningPlayer) const
+{
+	if (IsValid(OwningPlayer))
+	{
+		return OwningPlayer;
+	}
+
+	return GetWorld() ? GetWorld()->GetFirstPlayerController() : nullptr;
+}
+
+UInv_InventoryWidgetOwnerSubsystem* UInv_InventoryBase::ResolveInventoryWidgetOwnerSubsystem(
+	APlayerController* OwningPlayer) const
+{
+	OwningPlayer = ResolveInventoryWidgetOwningPlayer(OwningPlayer);
+	if (!IsValid(OwningPlayer))
+	{
+		return nullptr;
+	}
+
+	ULocalPlayer* LocalPlayer = OwningPlayer->GetLocalPlayer();
+	return LocalPlayer ? LocalPlayer->GetSubsystem<UInv_InventoryWidgetOwnerSubsystem>() : nullptr;
+}
+
+TSubclassOf<UInv_InventoryWidgetBase> UInv_InventoryBase::ResolveInventoryWidgetClass(
+	EInv_InventoryWidgetType InWidgetType) const
+{
+	for (const auto& [WidgetType, WidgetClass] : InventoryWidgetConfigs)
+	{
+		if (WidgetType == InWidgetType && IsValid(WidgetClass))
+		{
+			return WidgetClass;
+		}
+	}
+
+	return InventoryWidgetClass;
 }
 
 int32 UInv_InventoryBase::FindFirstEmptySlotIndex() const
@@ -730,7 +926,8 @@ bool UInv_InventoryBase::TryMoveItemBetweenInventories(UInv_InventoryBase* Sourc
 	if (!IsValid(SourceInventory) || !IsValid(TargetInventory))
 	{
 		UE_LOG(LogInventorySystem, Warning,
-		       TEXT("UInv_InventoryBase::TryMoveItemBetweenInventories: SourceInventory or TargetInventory is invalid"));
+		       TEXT("UInv_InventoryBase::TryMoveItemBetweenInventories: SourceInventory or TargetInventory is invalid"
+		       ));
 		return false;
 	}
 

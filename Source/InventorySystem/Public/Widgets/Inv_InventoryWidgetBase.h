@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
 #include "Items/Data/Inv_RealItemData.h"
+#include "Widgets/Inv_InventoryWidgetTypes.h"
 #include "Inv_InventoryWidgetBase.generated.h"
 
 class UInv_InventoryBase;
@@ -45,7 +46,10 @@ public:
 	void ClearAllSlots();
 
 	void SetInventory(UInv_InventoryBase* InInventory);
+	void SetInventoryWidgetType(EInv_InventoryWidgetType InWidgetType);
 	UInv_InventoryBase* GetInventory() const { return BoundInventory.Get(); }
+	UFUNCTION(BlueprintPure, Category = "Inventory System|UI")
+	EInv_InventoryWidgetType GetInventoryWidgetType() const { return InventoryWidgetType; }
 	void RequestItemDrop(UInv_InventoryBase* SourceInventory, const FGuid& SourceItemId, int32 TargetSlotIndex);
 
 	// ========== 查询接口 ==========
@@ -89,6 +93,7 @@ protected:
 	int32 TotalSlots;
 	TWeakObjectPtr<UInv_ItemOptionsWidget> ItemOptionsWidgetInstance;
 	TWeakObjectPtr<UInv_InventoryBase> BoundInventory;
+	EInv_InventoryWidgetType InventoryWidgetType{EInv_InventoryWidgetType::None};
 
 	UPROPERTY()
 	TArray<UInv_InventoryEntry*> InventoryEntries;

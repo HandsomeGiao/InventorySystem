@@ -19,8 +19,18 @@
 ## UI绑定方式
 
 - 默认情况下，UInv_InventoryBase会在BeginPlay时根据InventoryWidgetClass自动创建并初始化库存UI。
-- 如果希望像箱子这类容器一样按需显示UI，可以关闭bAutoCreateInventoryWidget，然后在需要时调用CreateInventoryWidget。
-- 如果容器UI由外部窗口统一管理，可以先在外部创建UInv_InventoryWidgetBase，再调用BindInventoryWidget进行绑定；关闭窗口时调用UnbindInventoryWidget即可。
+- 如果希望像箱子这类容器一样按需显示UI，可以关闭bAutoCreateInventoryWidget，然后在需要时调用CreateInventoryWidget或CreateInventoryWidgetByType。
+- UInv_InventoryBase现在支持按EInv_InventoryWidgetType管理多个窗口实例；同一种类型在同一个LocalPlayer下同一时间只会保留一个实例，但不同类型可以同时存在。
+- UInv_InventoryBase提供了InventoryOwnerType，用来区分该Inventory属于玩家、容器还是其它Actor；其中玩家Inventory会在运行时根据观察者自动解析成PlayerSelf或PlayerOther。
+- 可以通过DefaultInventoryWidgetType指定旧接口对应的默认窗口类型，并通过InventoryWidgetConfigs为不同类型分别配置WidgetClass。
+- 如果容器UI由外部窗口统一管理，可以先在外部创建UInv_InventoryWidgetBase，再调用BindInventoryWidget或BindInventoryWidgetByType进行绑定；关闭窗口时调用对应的Unbind/Destroy接口即可。
+
+## 角色交互
+
+- AInventorySystemVCharacter 会继续使用屏幕中心射线检测可拾取物品。
+- 当没有检测到可拾取物品时，现有的PickupAction会改为检测角色附近的其它Inventory，并切换对应窗口的开关状态。
+- 角色自身的Inventory在构造函数中会默认标记为Player；箱子等容器Actor需要把自己的InventoryOwnerType配置为Container。
+- 对于玩家Inventory，本地拥有者看到的是PlayerSelf窗口，其他玩家看到的是PlayerOther窗口。
 
 ## 槽位同步
 
