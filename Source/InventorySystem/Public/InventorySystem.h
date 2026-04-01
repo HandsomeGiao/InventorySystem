@@ -11,7 +11,6 @@ DECLARE_LOG_CATEGORY_EXTERN(LogInventorySystem, Log, All);
 class FInventorySystemModule : public IModuleInterface
 {
 public:
-
 	/** IModuleInterface implementation */
 	virtual void StartupModule() override;
 	virtual void ShutdownModule() override;

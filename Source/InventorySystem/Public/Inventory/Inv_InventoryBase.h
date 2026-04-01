@@ -30,63 +30,22 @@ public:
 	bool IsInventoryFull() const { return MaxSlots > 0 && GetItemsCount() >= MaxSlots; }
 	int32 GetRemainingSlots() const { return MaxSlots - GetItemsCount(); }
 	int32 GetMaxSlots() const { return MaxSlots; }
+	bool CanSendServerCommand() const;
 
 	// ========== UI接口 ==========
 
-	UFUNCTION(BlueprintCallable, Category = "Inventory System|UI")
-	UInv_InventoryWidgetBase* CreateInventoryWidget(APlayerController* OwningPlayer = nullptr,
-	                                                bool bAddToViewport = true);
-
-	UFUNCTION(BlueprintCallable, Category = "Inventory System|UI")
-	void BindInventoryWidget(UInv_InventoryWidgetBase* InInventoryWidget);
-
-	UFUNCTION(BlueprintCallable, Category = "Inventory System|UI")
-	void UnbindInventoryWidget();
-
-	UFUNCTION(BlueprintCallable, Category = "Inventory System|UI")
-	void DestroyInventoryWidget();
-
-	UFUNCTION(BlueprintCallable, Category = "Inventory System|UI")
-	void RefreshInventoryWidget();
-
-	UFUNCTION(BlueprintPure, Category = "Inventory System|UI")
-	UInv_InventoryWidgetBase* GetInventoryWidget() const;
-
-	UFUNCTION(BlueprintCallable, Category = "Inventory System|UI")
 	UInv_InventoryWidgetBase* CreateInventoryWidgetByType(EInv_InventoryWidgetType WidgetType,
 	                                                      APlayerController* OwningPlayer = nullptr,
 	                                                      bool bAddToViewport = true);
-
-	UFUNCTION(BlueprintCallable, Category = "Inventory System|UI")
 	void BindInventoryWidgetByType(EInv_InventoryWidgetType WidgetType, UInv_InventoryWidgetBase* InInventoryWidget);
-
-	UFUNCTION(BlueprintCallable, Category = "Inventory System|UI")
 	void UnbindInventoryWidgetByType(EInv_InventoryWidgetType WidgetType);
-
-	UFUNCTION(BlueprintCallable, Category = "Inventory System|UI")
 	void DestroyInventoryWidgetByType(EInv_InventoryWidgetType WidgetType);
-
-	UFUNCTION(BlueprintCallable, Category = "Inventory System|UI")
 	void RefreshInventoryWidgetByType(EInv_InventoryWidgetType WidgetType);
-
-	UFUNCTION(BlueprintCallable, Category = "Inventory System|UI")
-	void RefreshAllInventoryWidgets();
-
-	UFUNCTION(BlueprintPure, Category = "Inventory System|UI")
 	UInv_InventoryWidgetBase* GetInventoryWidgetByType(EInv_InventoryWidgetType WidgetType) const;
-
-	UFUNCTION(BlueprintPure, Category = "Inventory System")
-	EInv_InventoryOwnerType GetInventoryOwnerType() const { return InventoryOwnerType; }
-
-	UFUNCTION(BlueprintCallable, Category = "Inventory System")
 	void SetInventoryOwnerType(EInv_InventoryOwnerType InInventoryOwnerType) { InventoryOwnerType = InInventoryOwnerType; }
-
-	UFUNCTION(BlueprintPure, Category = "Inventory System|UI")
 	EInv_InventoryWidgetType ResolveInventoryWidgetType(APlayerController* ViewingPlayer = nullptr) const;
-
 	void RequestMoveItem(UInv_InventoryBase* SourceInventory, const FGuid& SourceItemId,
 	                     UInv_InventoryBase* TargetInventory, int32 TargetSlotIndex);
-	bool CanSendServerCommand() const;
 
 	// ========== 修改接口（仅服务端）==========
 

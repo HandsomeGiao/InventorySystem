@@ -16,14 +16,14 @@ struct FInv_VirtualItemFragment;
 UCLASS()
 class INVENTORYSYSTEM_API UInv_BpFuncLib : public UBlueprintFunctionLibrary
 {
-    GENERATED_BODY()
+	GENERATED_BODY()
 
 public:
-    UFUNCTION(BlueprintCallable, Category="Inventory System|Utils")
-    static int32 GetRealItemFragmentByClass(const TArray<TInstancedStruct<FInv_RealItemFragment>> &Fragments,
-        const UScriptStruct *FragmentClass);
+	UFUNCTION(BlueprintCallable, Category="Inventory System|Utils")
+	static int32 GetRealItemFragmentByClass(const TArray<TInstancedStruct<FInv_RealItemFragment>>& Fragments,
+	                                        const UScriptStruct* FragmentClass);
 
-    UFUNCTION(BlueprintCallable, Category="Inventory System|Utils")
-    static int32 GetVirtualFragmentByClass(const TArray<FInstancedStruct> &Fragments,
-        const UScriptStruct *FragmentClass);
+	UFUNCTION(BlueprintCallable, Category="Inventory System|Utils")
+	static int32 GetVirtualFragmentByClass(const TArray<FInstancedStruct>& Fragments,
+	                                       const UScriptStruct* FragmentClass);
 };

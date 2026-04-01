@@ -28,38 +28,6 @@ void UInv_InventoryBase::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& O
 	DOREPLIFETIME(UInv_InventoryBase, ItemList);
 }
 
-UInv_InventoryWidgetBase* UInv_InventoryBase::CreateInventoryWidget(APlayerController* OwningPlayer,
-                                                                    bool bAddToViewport)
-{
-	return CreateInventoryWidgetByType(ResolveInventoryWidgetType(OwningPlayer), OwningPlayer, bAddToViewport);
-}
-
-void UInv_InventoryBase::BindInventoryWidget(UInv_InventoryWidgetBase* InInventoryWidget)
-{
-	BindInventoryWidgetByType(ResolveInventoryWidgetType(InInventoryWidget ? InInventoryWidget->GetOwningPlayer() : nullptr),
-	                          InInventoryWidget);
-}
-
-void UInv_InventoryBase::UnbindInventoryWidget()
-{
-	UnbindInventoryWidgetByType(ResolveInventoryWidgetType());
-}
-
-void UInv_InventoryBase::DestroyInventoryWidget()
-{
-	DestroyInventoryWidgetByType(ResolveInventoryWidgetType());
-}
-
-void UInv_InventoryBase::RefreshInventoryWidget()
-{
-	RefreshInventoryWidgetByType(ResolveInventoryWidgetType());
-}
-
-UInv_InventoryWidgetBase* UInv_InventoryBase::GetInventoryWidget() const
-{
-	return GetInventoryWidgetByType(ResolveInventoryWidgetType());
-}
-
 UInv_InventoryWidgetBase* UInv_InventoryBase::CreateInventoryWidgetByType(EInv_InventoryWidgetType WidgetType,
                                                                           APlayerController* OwningPlayer,
                                                                           bool bAddToViewport)
@@ -230,19 +198,6 @@ void UInv_InventoryBase::RefreshInventoryWidgetByType(EInv_InventoryWidgetType W
 	}
 
 	InventoryWidgetInstance->UpdateInventory(GetAllItems());
-}
-
-void UInv_InventoryBase::RefreshAllInventoryWidgets()
-{
-	const TArray<FInv_RealItemData> ItemDataArray = GetAllItems();
-	for (const TPair<EInv_InventoryWidgetType, TObjectPtr<UInv_InventoryWidgetBase>>& WidgetPair :
-	     InventoryWidgetInstances)
-	{
-		if (IsValid(WidgetPair.Value))
-		{
-			WidgetPair.Value->UpdateInventory(ItemDataArray);
-		}
-	}
 }
 
 UInv_InventoryWidgetBase* UInv_InventoryBase::GetInventoryWidgetByType(EInv_InventoryWidgetType WidgetType) const

@@ -50,6 +50,7 @@ public:
 	UInv_InventoryBase* GetInventory() const { return BoundInventory.Get(); }
 	UFUNCTION(BlueprintPure, Category = "Inventory System|UI")
 	EInv_InventoryWidgetType GetInventoryWidgetType() const { return InventoryWidgetType; }
+
 	void RequestItemDrop(UInv_InventoryBase* SourceInventory, const FGuid& SourceItemId, int32 TargetSlotIndex);
 
 	// ========== 查询接口 ==========
