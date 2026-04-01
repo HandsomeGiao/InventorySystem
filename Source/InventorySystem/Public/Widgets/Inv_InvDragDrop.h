@@ -15,8 +15,7 @@ class INVENTORYSYSTEM_API UInv_InvDragDrop : public UDragDropOperation
 	GENERATED_BODY()
 
 public:
-	UPROPERTY()
-	TObjectPtr<UInv_InventoryBase> SourceInventory;
+	TWeakObjectPtr<UInv_InventoryBase> SourceInventory;
 
 	// 被拖拽的物品数据
 	FGuid SourceItemId;

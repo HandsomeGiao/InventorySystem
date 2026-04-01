@@ -6,6 +6,7 @@
 #include "InventorySystem.h"
 #include "Widgets/Inv_InventoryWidgetBase.h"
 #include "Widgets/Inv_InvDragDrop.h"
+#include "Inventory/Inv_InventoryBase.h"
 
 void UInv_InventoryEntry::SetInfo(const FInv_RealItemData& RealItemData)
 {
@@ -117,7 +118,7 @@ bool UInv_InventoryEntry::NativeOnDrop(const FGeometry& InGeometry, const FDragD
 			return false;
 		}
 
-		if (!IsValid(InvDragOp->SourceInventory))
+		if (!InvDragOp->SourceInventory.IsValid())
 		{
 			UE_LOG(LogInventorySystem, Warning,
 			       TEXT("UInv_InventoryEntry::NativeOnDrop: SourceInventory is invalid"));
@@ -130,7 +131,7 @@ bool UInv_InventoryEntry::NativeOnDrop(const FGeometry& InGeometry, const FDragD
 			return false;
 		}
 
-		InventoryWidget->RequestItemDrop(InvDragOp->SourceInventory, InvDragOp->SourceItemId, WidgetIndex);
+		InventoryWidget->RequestItemDrop(InvDragOp->SourceInventory.Get(), InvDragOp->SourceItemId, WidgetIndex);
 
 		UE_LOG(LogInventorySystem, Display,
 		       TEXT("UInv_InventoryEntry::NativeOnDrop: SourceItem '%s' dropped onto SlotIndex:%d"),

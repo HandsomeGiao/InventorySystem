@@ -955,6 +955,26 @@ bool UInv_InventoryBase::TryMoveItemBetweenInventories(UInv_InventoryBase* Sourc
 			       *GetNameSafe(TargetInventory->GetOwner()));
 			return false;
 		}
+
+		const APawn* RequestingPawn = Cast<APawn>(RequestingActor);
+		const bool bIsListenServerLocalRequester =
+			GetNetMode() == NM_ListenServer && RequestingPawn && RequestingPawn->IsLocallyControlled();
+		const bool bRequiresReplicatedInventories =
+			(GetNetMode() == NM_DedicatedServer || GetNetMode() == NM_ListenServer) && !bIsListenServerLocalRequester;
+		if (bRequiresReplicatedInventories)
+		{
+			const AActor* SourceOwner = SourceInventory->GetOwner();
+			const AActor* TargetOwner = TargetInventory->GetOwner();
+			if ((IsValid(SourceOwner) && !SourceOwner->GetIsReplicated()) ||
+				(IsValid(TargetOwner) && !TargetOwner->GetIsReplicated()))
+			{
+				UE_LOG(LogInventorySystem, Warning,
+				       TEXT("UInv_InventoryBase::TryMoveItemBetweenInventories: SourceOwner '%s' or TargetOwner '%s' is not replicated. Remote clients can only move items across replicated inventory actors."),
+				       *GetNameSafe(SourceOwner),
+				       *GetNameSafe(TargetOwner));
+				return false;
+			}
+		}
 	}
 
 	const FInv_RealItemData* TargetItemData = TargetInventory->FindItemBySlotIndex(TargetSlotIndex);
