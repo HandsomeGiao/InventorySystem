@@ -1,6 +1,8 @@
 #include "Inventory/Inv_InventoryBase.h"
 #include "Engine/World.h"
+#include "GameFramework/Controller.h"
 #include "Engine/LocalPlayer.h"
+#include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
 #include "InventorySystem.h"
 #include "Items/Component/Inv_ItemComponent.h"
@@ -294,7 +296,7 @@ void UInv_InventoryBase::RequestMoveItem(UInv_InventoryBase* SourceInventory, co
 
 	if (GetOwner()->HasAuthority())
 	{
-		TryMoveItemBetweenInventories(SourceInventory, SourceItemId, TargetInventory, TargetSlotIndex);
+		TryMoveItemBetweenInventories(SourceInventory, SourceItemId, TargetInventory, TargetSlotIndex, GetOwner());
 		return;
 	}
 
@@ -670,7 +672,7 @@ void UInv_InventoryBase::ServerRequestMoveItem_Implementation(AActor* SourceInve
 		                                      ? TargetInventoryOwner->FindComponentByClass<UInv_InventoryBase>()
 		                                      : nullptr;
 
-	TryMoveItemBetweenInventories(SourceInventory, SourceItemId, TargetInventory, TargetSlotIndex);
+	TryMoveItemBetweenInventories(SourceInventory, SourceItemId, TargetInventory, TargetSlotIndex, GetOwner());
 }
 
 // ========== 事件响应默认实现 ==========
@@ -871,6 +873,38 @@ const FInv_RealItemData* UInv_InventoryBase::FindItemBySlotIndex(int32 SlotIndex
 	return ItemList.FindItemBySlotIndex(SlotIndex);
 }
 
+bool UInv_InventoryBase::IsInventoryOwnerActor(const AActor* RequestingActor) const
+{
+	if (!IsValid(RequestingActor) || !IsValid(GetOwner()))
+	{
+		return false;
+	}
+
+	if (RequestingActor == GetOwner())
+	{
+		return true;
+	}
+
+	const APawn* InventoryPawn = Cast<APawn>(GetOwner());
+	const APawn* RequestingPawn = Cast<APawn>(RequestingActor);
+	if (InventoryPawn && RequestingPawn && InventoryPawn == RequestingPawn)
+	{
+		return true;
+	}
+
+	const AController* InventoryController = InventoryPawn ? InventoryPawn->GetController() : Cast<AController>(GetOwner());
+	const AController* RequestingController = RequestingPawn
+		                                          ? RequestingPawn->GetController()
+		                                          : Cast<AController>(RequestingActor);
+
+	return InventoryController && RequestingController && InventoryController == RequestingController;
+}
+
+bool UInv_InventoryBase::CanActorTransferAcrossInventories(const AActor* RequestingActor) const
+{
+	return bAllowOtherPlayersCrossInventoryTransfer || IsInventoryOwnerActor(RequestingActor);
+}
+
 bool UInv_InventoryBase::CanAcceptItemAtSlot(const FInv_RealItemData& ItemData, int32 SlotIndex,
                                              const FGuid& IgnoredItemId) const
 {
@@ -914,7 +948,8 @@ int32 UInv_InventoryBase::GetStackTransferCount(const FInv_RealItemData& SourceI
 }
 
 bool UInv_InventoryBase::TryMoveItemBetweenInventories(UInv_InventoryBase* SourceInventory, const FGuid& SourceItemId,
-                                                       UInv_InventoryBase* TargetInventory, int32 TargetSlotIndex)
+                                                       UInv_InventoryBase* TargetInventory, int32 TargetSlotIndex,
+                                                       AActor* RequestingActor)
 {
 	if (!GetOwner()->HasAuthority())
 	{
@@ -951,6 +986,20 @@ bool UInv_InventoryBase::TryMoveItemBetweenInventories(UInv_InventoryBase* Sourc
 	if (SourceInventory == TargetInventory && SourceItemData->SlotIndex == TargetSlotIndex)
 	{
 		return false;
+	}
+
+	if (SourceInventory != TargetInventory)
+	{
+		if (!SourceInventory->CanActorTransferAcrossInventories(RequestingActor) ||
+			!TargetInventory->CanActorTransferAcrossInventories(RequestingActor))
+		{
+			UE_LOG(LogInventorySystem, Warning,
+			       TEXT("UInv_InventoryBase::TryMoveItemBetweenInventories: RequestingActor '%s' has no permission to transfer items between '%s' and '%s'"),
+			       *GetNameSafe(RequestingActor),
+			       *GetNameSafe(SourceInventory->GetOwner()),
+			       *GetNameSafe(TargetInventory->GetOwner()));
+			return false;
+		}
 	}
 
 	const FInv_RealItemData* TargetItemData = TargetInventory->FindItemBySlotIndex(TargetSlotIndex);

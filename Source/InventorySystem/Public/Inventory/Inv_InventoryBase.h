@@ -140,6 +140,13 @@ protected:
 	EInv_InventoryOwnerType InventoryOwnerType{EInv_InventoryOwnerType::Other};
 
 	/**
+	 * 是否允许其他玩家与该Inventory进行跨Inventory物品转移
+	 * 例如：将物品拖入此Inventory，或从此Inventory拖出到其它Inventory
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory System|Permission")
+	bool bAllowOtherPlayersCrossInventoryTransfer{false};
+
+	/**
 	 * 允许存放的物品类型标签（空表示允许所有类型）
 	 * 例如：["Item.Equipment", "Item.Consumable"]
 	 */
@@ -193,11 +200,14 @@ private:
 	int32 FindFirstEmptySlotIndex() const;
 	bool IsValidInventorySlotIndex(int32 SlotIndex) const;
 	const FInv_RealItemData* FindItemBySlotIndex(int32 SlotIndex) const;
+	bool IsInventoryOwnerActor(const AActor* RequestingActor) const;
+	bool CanActorTransferAcrossInventories(const AActor* RequestingActor) const;
 	bool CanAcceptItemAtSlot(const FInv_RealItemData& ItemData, int32 SlotIndex,
 	                         const FGuid& IgnoredItemId = FGuid()) const;
 	int32 GetStackTransferCount(const FInv_RealItemData& SourceItemData, const FInv_RealItemData& TargetItemData) const;
 	bool TryMoveItemBetweenInventories(UInv_InventoryBase* SourceInventory, const FGuid& SourceItemId,
-	                                   UInv_InventoryBase* TargetInventory, int32 TargetSlotIndex);
+	                                   UInv_InventoryBase* TargetInventory, int32 TargetSlotIndex,
+	                                   AActor* RequestingActor);
 	bool TryTransferItemToEmptySlot(UInv_InventoryBase* SourceInventory, const FGuid& SourceItemId,
 	                                UInv_InventoryBase* TargetInventory, int32 TargetSlotIndex);
 	bool TryStackItems(UInv_InventoryBase* SourceInventory, const FGuid& SourceItemId,

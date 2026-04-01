@@ -2,6 +2,7 @@
 #include "Widgets/Inv_InventoryEntry.h"
 #include "Components/UniformGridPanel.h"
 #include "Engine/Engine.h"
+#include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
 #include "Inventory/Inv_InventoryBase.h"
 #include "InventorySystem.h"
@@ -125,6 +126,17 @@ void UInv_InventoryWidgetBase::RequestItemDrop(UInv_InventoryBase* SourceInvento
     else if (TargetInventory->CanSendServerCommand())
     {
         RequestInventory = TargetInventory;
+    }
+
+    if (!IsValid(RequestInventory))
+    {
+        APlayerController* OwningPlayer = GetOwningPlayer();
+        APawn* LocalPawn = OwningPlayer ? OwningPlayer->GetPawn() : nullptr;
+        UInv_InventoryBase* LocalInventory = LocalPawn ? LocalPawn->FindComponentByClass<UInv_InventoryBase>() : nullptr;
+        if (IsValid(LocalInventory) && LocalInventory->CanSendServerCommand())
+        {
+            RequestInventory = LocalInventory;
+        }
     }
 
     if (!IsValid(RequestInventory))
